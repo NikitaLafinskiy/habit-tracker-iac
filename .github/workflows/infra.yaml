@@ -1,0 +1,102 @@
+name: Infra CI
+run-name: ${{ github.ref_name }}-${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to run after plan'
+        required: true
+        type: choice
+        options:
+          - 'plan'
+          - 'apply'
+        default: 'plan'
+
+jobs:
+  plan:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ./
+    env:
+      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Init Terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_S3_BUCKET }}" \
+            -backend-config="key=${{ vars.TF_STATE_S3_KEY }}"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Validate changes
+        run: terraform validate
+
+      - name: Plan changes
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+          # apply waits on a human approving the terraform-apply environment,
+          # which can easily span a weekend - keep the plan around long
+          # enough to survive that wait.
+          retention-days: 5
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/main' && inputs.action == 'apply'
+    environment: terraform-apply
+    defaults:
+      run:
+        working-directory: ./
+    env:
+      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Init Terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_S3_BUCKET }}" \
+            -backend-config="key=${{ vars.TF_STATE_S3_KEY }}"
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ./
+
+      - name: Apply changes
+        run: terraform apply -input=false tfplan
