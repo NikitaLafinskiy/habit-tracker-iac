@@ -17,3 +17,8 @@ output "api_gateway_endpoint" {
   description = "Invoke URL of the shared API Gateway's $default stage"
   value       = module.api_gateway.api_endpoint
 }
+
+output "lambda_artifacts_bucket" {
+  description = "Name of the shared S3 bucket that holds Lambda deployment artifacts for all services"
+  value       = module.lambda_artifacts_bucket.name
+}
