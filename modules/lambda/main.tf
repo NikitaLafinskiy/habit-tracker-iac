@@ -23,8 +23,9 @@ resource "aws_lambda_function" "this" {
   runtime      = var.runtime
   handler      = var.handler
 
-  s3_bucket = var.s3_bucket
-  s3_key    = var.s3_key
+  s3_bucket         = var.s3_bucket
+  s3_key            = var.s3_key
+  s3_object_version = data.aws_s3_object.package.version_id
 
   memory_size = var.memory_size
   timeout     = var.timeout
