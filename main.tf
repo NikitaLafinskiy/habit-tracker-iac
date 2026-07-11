@@ -6,7 +6,7 @@ locals {
 module "api_gateway" {
   source = "./modules/api-gateway"
 
-  name                 = local.name
-  tags                 = local.tags
+  name = local.name
+  tags = local.tags
 }
 

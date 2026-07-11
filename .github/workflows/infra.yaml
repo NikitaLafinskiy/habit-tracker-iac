@@ -2,16 +2,11 @@ name: Infra CI
 run-name: ${{ github.ref_name }}-${{ github.actor }}
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      action:
-        description: 'Terraform action to run after plan'
-        required: true
-        type: choice
-        options:
-          - 'plan'
-          - 'apply'
-        default: 'plan'
 
 jobs:
   plan:
@@ -59,7 +54,10 @@ jobs:
   apply:
     needs: plan
     runs-on: ubuntu-22.04
-    if: github.ref == 'refs/heads/main' && inputs.action == 'apply'
+    # Plan runs on every PR/push for visibility, but apply only ever runs
+    # from an explicit manual dispatch against main - never automatically
+    # off the back of a push or PR.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     environment: terraform-apply
     defaults:
       run:
