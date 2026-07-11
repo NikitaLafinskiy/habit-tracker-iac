@@ -49,10 +49,8 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
 }
 
 data "aws_ssm_parameter" "this" {
-  for_each = {
-    jwt_access_secret  = "/services/auth/jwt/access-secret"
-    jwt_refresh_secret = "/services/auth/jwt/refresh-secret"
-  }
+  for_each = var.ssm_parameters
+
   name            = each.value
   with_decryption = true
 }
