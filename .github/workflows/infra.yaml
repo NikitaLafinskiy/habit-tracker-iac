@@ -19,8 +19,6 @@ jobs:
     defaults:
       run:
         working-directory: ./
-    env:
-      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
 
     steps:
       - name: Checkout code
@@ -37,10 +35,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Init Terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_S3_BUCKET }}" \
-            -backend-config="key=${{ vars.TF_STATE_S3_KEY }}"
+        run: terraform init
 
       - name: Check formatting
         run: terraform fmt -check -recursive
@@ -69,8 +64,6 @@ jobs:
     defaults:
       run:
         working-directory: ./
-    env:
-      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
 
     steps:
       - name: Checkout code
@@ -87,10 +80,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Init Terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_S3_BUCKET }}" \
-            -backend-config="key=${{ vars.TF_STATE_S3_KEY }}"
+        run: terraform init
 
       - name: Download plan
         uses: actions/download-artifact@v4

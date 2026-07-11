@@ -1,11 +1,12 @@
 terraform {
-  # No remote state bucket exists yet. The bucket (and any key prefix) must
-  # be supplied at `terraform init -backend-config=...` time once one is
-  # provisioned; until then this partial config lets `init` fall back to
-  # asking for it interactively.
+  # Points at the bucket/table provisioned by bootstrap/ (see
+  # bootstrap/terraform.tfvars for the actual names used). Hardcoded here
+  # so `terraform init` needs no -backend-config flags.
   backend "s3" {
+    bucket         = "habit-tracker-statetf"
+    key            = "iac/terraform.tfstate"
     region         = "eu-central-1"
-    dynamodb_table = "tflock"
+    dynamodb_table = "habit-tracker-locktf"
   }
 }
 
