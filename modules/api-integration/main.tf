@@ -1,6 +1,6 @@
 
 resource "aws_apigatewayv2_integration" "lambda" {
-  api_id                 = var.api_gateway_id 
+  api_id                 = var.api_gateway_id
   integration_type       = "AWS_PROXY"
   integration_uri        = var.lambda_invoke_arn
   integration_method     = "POST"

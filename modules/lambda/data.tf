@@ -53,8 +53,8 @@ data "aws_ssm_parameter" "this" {
     datasource_url      = "/services/auth/datasource/url"
     datasource_username = "/services/auth/datasource/username"
     datasource_password = "/services/auth/datasource/password"
-    jwt_access_secret    = "/services/auth/jwt/access-secret"
-    jwt_refresh_secret   = "/services/auth/jwt/refresh-secret"
+    jwt_access_secret   = "/services/auth/jwt/access-secret"
+    jwt_refresh_secret  = "/services/auth/jwt/refresh-secret"
   }
   name            = each.value
   with_decryption = true
