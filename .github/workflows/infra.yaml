@@ -54,10 +54,12 @@ jobs:
   apply:
     needs: plan
     runs-on: ubuntu-22.04
-    # Plan runs on every PR/push for visibility, but apply only ever runs
-    # from an explicit manual dispatch against main - never automatically
-    # off the back of a push or PR.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # Plan runs on every PR/push for visibility. Apply is restricted to main
+    # (a pull_request run's ref is the PR merge ref, never refs/heads/main,
+    # so PRs never reach this) and, once it does, sits waiting on manual
+    # approval via the environment's required reviewers rather than running
+    # straight through.
+    if: github.ref == 'refs/heads/main'
     environment: terraform-apply
     defaults:
       run:
