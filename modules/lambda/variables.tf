@@ -49,6 +49,12 @@ variable "dynamodb_table_arns" {
   default     = []
 }
 
+variable "ssm_parameters" {
+  type        = map(string)
+  description = "Map of Lambda environment variable name => SSM parameter name to resolve at plan/apply time and inject as that environment variable"
+  default     = {}
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags"
