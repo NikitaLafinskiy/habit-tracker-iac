@@ -40,3 +40,9 @@ variable "tags" {
   description = "Map of tags"
   default     = {}
 }
+
+variable "items" {
+  type        = map(string)
+  description = "Map of seed-item-key => JSON-encoded DynamoDB item (attribute-value format, e.g. jsonencode({ role = { S = \"ADMIN\" } })) to seed into the table"
+  default     = {}
+}

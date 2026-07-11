@@ -15,3 +15,14 @@ resource "aws_dynamodb_table" "this" {
 
   tags = var.tags
 }
+
+# For small, static reference data (lookup/enum-backed tables) known at plan
+# time - not a fit for larger or dynamic seed data, which belongs in an
+# app-level seeder or a one-off script instead.
+resource "aws_dynamodb_table_item" "seed" {
+  for_each = var.items
+
+  table_name = aws_dynamodb_table.this.name
+  hash_key   = var.hash_key
+  item       = each.value
+}
