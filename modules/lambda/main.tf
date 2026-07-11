@@ -39,11 +39,8 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      SPRING_DATASOURCE_URL      = data.aws_ssm_parameter.this["datasource_url"].value
-      SPRING_DATASOURCE_USERNAME = data.aws_ssm_parameter.this["datasource_username"].value
-      SPRING_DATASOURCE_PASSWORD = data.aws_ssm_parameter.this["datasource_password"].value
-      JWT_ACCESS_SECRET          = data.aws_ssm_parameter.this["jwt_access_secret"].value
-      JWT_REFRESH_SECRET         = data.aws_ssm_parameter.this["jwt_refresh_secret"].value
+      JWT_ACCESS_SECRET  = data.aws_ssm_parameter.this["jwt_access_secret"].value
+      JWT_REFRESH_SECRET = data.aws_ssm_parameter.this["jwt_refresh_secret"].value
     }
   }
 
