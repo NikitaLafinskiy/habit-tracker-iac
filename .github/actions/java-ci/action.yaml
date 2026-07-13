@@ -1,0 +1,28 @@
+name: Java CI
+description: >
+  Shared setup, Checkstyle, and test steps for Gradle-based Java
+  services/libraries across repos. Repo-specific steps (packaging,
+  publishing) stay in each repo's own workflow.
+
+inputs:
+  java-version:
+    required: false
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: 'adopt'
+        cache: gradle
+
+    - name: Checkstyle check
+      shell: bash
+      run: ./gradlew checkstyleMain checkstyleTest --no-daemon
+
+    - name: Test with Gradle
+      shell: bash
+      run: ./gradlew test --no-daemon

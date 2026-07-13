@@ -7,84 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  plan:
-    runs-on: ubuntu-22.04
-    defaults:
-      run:
-        working-directory: ./
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Init Terraform
-        run: terraform init
-
-      - name: Check formatting
-        run: terraform fmt -check -recursive
-
-      - name: Validate changes
-        run: terraform validate
-
-      - name: Plan changes
-        run: terraform plan -input=false -out=tfplan
-
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: tfplan
-          # apply waits on a human approving the terraform-apply environment,
-          # which can easily span a weekend - keep the plan around long
-          # enough to survive that wait.
-          retention-days: 5
-
-  apply:
-    needs: plan
-    runs-on: ubuntu-22.04
-    # This repo is private on a plan without required-reviewer environment
-    # protection, so `environment:` alone doesn't hold apply for approval -
-    # it would just run straight through after plan. Gating on an explicit
-    # workflow_dispatch is the manual approval: apply only runs when a human
-    # opens this workflow on main and clicks "Run workflow", never off the
-    # back of a plain push or PR.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        working-directory: ./
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Init Terraform
-        run: terraform init
-
-      - name: Download plan
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan
-          path: ./
-
-      - name: Apply changes
-        run: terraform apply -input=false tfplan
+  terraform:
+    uses: ./.github/workflows/terraform-plan-apply.yaml
+    with:
+      working-directory: .
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
