@@ -46,6 +46,20 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
       resources = var.dynamodb_table_arns
     }
   }
+
+  dynamic "statement" {
+    for_each = length(var.ses_identity_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+      ]
+
+      resources = var.ses_identity_arns
+    }
+  }
 }
 
 data "aws_ssm_parameter" "this" {
