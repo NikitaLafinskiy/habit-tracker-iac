@@ -1,0 +1,113 @@
+name: Terraform plan/apply (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing the Terraform root to plan/apply
+        type: string
+        required: false
+        default: '.'
+      terraform-version:
+        type: string
+        required: false
+        default: '1.9.8'
+      needs-iac-ssh-access:
+        description: >
+          Whether this repo's Terraform sources modules via git::ssh from
+          habit-tracker-iac (requires the iac-modules-deploy-key secret)
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      aws-access-key-id:
+        required: true
+      aws-secret-access-key:
+        required: true
+      iac-modules-deploy-key:
+        required: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform setup
+        uses: NikitaLafinskiy/habit-tracker-iac/.github/actions/terraform-setup@main
+        with:
+          ssh-private-key: ${{ inputs.needs-iac-ssh-access && secrets.iac-modules-deploy-key || '' }}
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ vars.AWS_REGION }}
+          terraform-version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ inputs.working-directory }}/tfplan
+          # Apply waits on a human manually dispatching this workflow, which
+          # can easily span a weekend - keep the plan around long enough to
+          # survive that wait.
+          retention-days: 5
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-22.04
+    # This repo is private on a plan without required-reviewer environment
+    # protection, so `environment:` alone doesn't hold apply for approval -
+    # it would just run straight through after plan. Gating on an explicit
+    # workflow_dispatch is the manual approval: apply only runs when a human
+    # opens this workflow on main and clicks "Run workflow", never off the
+    # back of a plain push or PR.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform setup
+        uses: NikitaLafinskiy/habit-tracker-iac/.github/actions/terraform-setup@main
+        with:
+          ssh-private-key: ${{ inputs.needs-iac-ssh-access && secrets.iac-modules-deploy-key || '' }}
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ vars.AWS_REGION }}
+          terraform-version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ inputs.working-directory }}
+
+      - name: Terraform Apply
+        run: terraform apply -input=false tfplan
