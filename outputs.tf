@@ -22,3 +22,8 @@ output "lambda_artifacts_bucket" {
   description = "Name of the shared S3 bucket that holds Lambda deployment artifacts for all services"
   value       = module.lambda_artifacts_bucket.name
 }
+
+output "domain_zone_id" {
+  description = "Route53 hosted zone ID for the app's registered domain"
+  value       = module.domain.zone_id
+}

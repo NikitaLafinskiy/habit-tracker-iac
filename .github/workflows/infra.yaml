@@ -2,8 +2,6 @@ name: Infra CI
 run-name: ${{ github.ref_name }}-${{ github.actor }}
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
