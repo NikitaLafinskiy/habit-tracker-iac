@@ -1,6 +1,20 @@
-name: Terraform plan/apply (reusable)
+name: Terraform plan/apply
+run-name: ${{ github.ref_name }}-${{ github.actor }}
 
+# Triggers directly on this repo's own PRs/dispatches (self plan/apply of
+# main.tf) *and* stays callable by other repos (auth/api/client's own
+# terraform.yaml `uses: NikitaLafinskiy/habit-tracker-iac/.github/workflows/
+# terraform-plan-apply.yaml@main`) - one file instead of a separate trigger
+# wrapper, since workflow_call can coexist with other trigger types in the
+# same `on:` block. Every `inputs.*`/custom-named `secrets.*` reference
+# below falls back to a same-repo default, since that context is only
+# populated when actually invoked via workflow_call (or workflow_dispatch
+# with matching declared inputs) - a plain pull_request run of this file
+# has neither.
 on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
   workflow_call:
     inputs:
       working-directory:
@@ -32,7 +46,7 @@ jobs:
     runs-on: ubuntu-22.04
     defaults:
       run:
-        working-directory: ${{ inputs.working-directory }}
+        working-directory: ${{ inputs.working-directory || '.' }}
     env:
       TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
 
@@ -44,10 +58,15 @@ jobs:
         uses: NikitaLafinskiy/habit-tracker-iac/.github/actions/terraform-setup@main
         with:
           ssh-private-key: ${{ inputs.needs-iac-ssh-access && secrets.iac-modules-deploy-key || '' }}
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          # secrets.aws-access-key-id only exists when a caller passed it
+          # through workflow_call's own secrets: block - on a direct
+          # self-trigger it's empty, so this falls back to this repo's own
+          # AWS_ACCESS_KEY_ID secret (what infra.yaml used to pass in
+          # explicitly).
+          aws-access-key-id: ${{ secrets.aws-access-key-id || secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key || secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
-          terraform-version: ${{ inputs.terraform-version }}
+          terraform-version: ${{ inputs.terraform-version || '1.9.8' }}
 
       - name: Terraform Init
         run: terraform init
@@ -65,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ${{ inputs.working-directory }}/tfplan
+          path: ${{ inputs.working-directory || '.' }}/tfplan
           # Apply waits on a human manually dispatching this workflow, which
           # can easily span a weekend - keep the plan around long enough to
           # survive that wait.
@@ -75,15 +94,17 @@ jobs:
     needs: plan
     runs-on: ubuntu-22.04
     # This repo is private on a plan without required-reviewer environment
-    # protection, so `environment:` alone doesn't hold apply for approval -
+    # protection, so `environment:` alone doesn't hold this for approval -
     # it would just run straight through after plan. Gating on an explicit
     # workflow_dispatch is the manual approval: apply only runs when a human
     # opens this workflow on main and clicks "Run workflow", never off the
-    # back of a plain push or PR.
+    # back of a plain push or PR. github.event_name reflects the original
+    # triggering event even across a workflow_call boundary, so this gate
+    # works identically for a remote caller's own workflow_dispatch too.
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     defaults:
       run:
-        working-directory: ${{ inputs.working-directory }}
+        working-directory: ${{ inputs.working-directory || '.' }}
     env:
       TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
 
@@ -95,10 +116,10 @@ jobs:
         uses: NikitaLafinskiy/habit-tracker-iac/.github/actions/terraform-setup@main
         with:
           ssh-private-key: ${{ inputs.needs-iac-ssh-access && secrets.iac-modules-deploy-key || '' }}
-          aws-access-key-id: ${{ secrets.aws-access-key-id }}
-          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-access-key-id: ${{ secrets.aws-access-key-id || secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key || secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
-          terraform-version: ${{ inputs.terraform-version }}
+          terraform-version: ${{ inputs.terraform-version || '1.9.8' }}
 
       - name: Terraform Init
         run: terraform init
@@ -107,7 +128,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tfplan
-          path: ${{ inputs.working-directory }}
+          path: ${{ inputs.working-directory || '.' }}
 
       - name: Terraform Apply
         run: terraform apply -input=false tfplan
