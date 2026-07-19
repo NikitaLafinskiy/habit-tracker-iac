@@ -25,8 +25,45 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+  block_public_acls       = var.block_public_acls
+  block_public_policy     = var.block_public_policy
+  ignore_public_acls      = var.ignore_public_acls
+  restrict_public_buckets = var.restrict_public_buckets
+}
+
+resource "aws_s3_bucket_policy" "this" {
+  count  = var.is_public ? 1 : 0
+  bucket = aws_s3_bucket.this.id
+  policy = data.aws_iam_policy_document.allow_public_read.json
+
+  # AWS rejects attaching a public bucket policy while the public access
+  # block above is still restrictive - nothing else ties these two
+  # resources together (this one only references aws_s3_bucket.this.id), so
+  # without this the apply order isn't guaranteed.
+  depends_on = [aws_s3_bucket_public_access_block.this]
+}
+
+data "aws_iam_policy_document" "allow_public_read" {
+  statement {
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+  }
+}
+
+# Add static website config (SPAs need the error document)
+resource "aws_s3_bucket_website_configuration" "this" {
+  count  = var.is_public ? 1 : 0
+  bucket = aws_s3_bucket.this.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html" # so client‑side routing works
+  }
 }
