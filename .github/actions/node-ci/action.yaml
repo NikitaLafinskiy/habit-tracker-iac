@@ -1,0 +1,39 @@
+name: Node CI
+description: >
+  Shared setup, lint, and test steps for npm-based Node services/clients
+  across repos. Repo-specific steps (building, publishing) stay in each
+  repo's own workflow.
+
+inputs:
+  node-version:
+    required: false
+    default: '22'
+  working-directory:
+    description: Directory containing the Node project (package.json/package-lock.json)
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci
+
+    - name: Lint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm run lint
+
+    - name: Test
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm test -- --ci
