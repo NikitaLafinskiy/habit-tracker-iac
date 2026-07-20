@@ -26,6 +26,12 @@ variable "hash_key" {
   description = "The name of the hash key for the DynamoDB table"
 }
 
+variable "range_key" {
+  type        = string
+  description = "The name of the range (sort) key for the DynamoDB table, if any"
+  default     = null
+}
+
 variable "attributes" {
   type = list(object({
     name = string
