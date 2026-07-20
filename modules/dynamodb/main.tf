@@ -4,6 +4,7 @@ resource "aws_dynamodb_table" "this" {
   read_capacity  = var.billing_mode == "PROVISIONED" ? var.read_capacity : null
   write_capacity = var.billing_mode == "PROVISIONED" ? var.write_capacity : null
   hash_key       = var.hash_key
+  range_key      = var.range_key
 
   dynamic "attribute" {
     for_each = var.attributes
