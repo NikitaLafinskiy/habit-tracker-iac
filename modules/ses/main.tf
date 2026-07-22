@@ -37,3 +37,59 @@ resource "aws_ses_domain_identity_verification" "this" {
 
   depends_on = [aws_route53_record.verification]
 }
+
+data "aws_caller_identity" "current" {}
+
+# Only created when a notification topic is actually wired up - callers that
+# don't pass notification_topic_arn get plain domain/DKIM verification only,
+# same as before this was added.
+resource "aws_ses_configuration_set" "this" {
+  count = var.notification_topic_arn != null ? 1 : 0
+
+  name = "${replace(var.domain_name, ".", "-")}-events"
+}
+
+resource "aws_ses_event_destination" "sns" {
+  count = var.notification_topic_arn != null ? 1 : 0
+
+  name                   = "${replace(var.domain_name, ".", "-")}-sns-events"
+  configuration_set_name = aws_ses_configuration_set.this[0].name
+  enabled                = true
+  matching_types         = ["bounce", "complaint"]
+
+  sns_destination {
+    topic_arn = var.notification_topic_arn
+  }
+}
+
+# Grants SES itself (not the sending Lambda) permission to publish to the
+# caller-provided topic - the topic's own module doesn't know it'll be used
+# for SES events, so that permission is attached here instead.
+data "aws_iam_policy_document" "sns_publish_from_ses" {
+  count = var.notification_topic_arn != null ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["SNS:Publish"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ses.amazonaws.com"]
+    }
+
+    resources = [var.notification_topic_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "notifications" {
+  count = var.notification_topic_arn != null ? 1 : 0
+
+  arn    = var.notification_topic_arn
+  policy = data.aws_iam_policy_document.sns_publish_from_ses[0].json
+}

@@ -39,7 +39,10 @@ resource "aws_lambda_function" "this" {
   }
 
   environment {
-    variables = { for env_var_name, param in data.aws_ssm_parameter.this : env_var_name => param.value }
+    variables = merge(
+      var.environment_variables,
+      { for env_var_name, param in data.aws_ssm_parameter.this : env_var_name => param.value },
+    )
   }
 
   tags = var.tags
