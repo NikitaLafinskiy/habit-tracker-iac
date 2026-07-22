@@ -61,6 +61,12 @@ variable "ssm_parameters" {
   default     = {}
 }
 
+variable "environment_variables" {
+  type        = map(string)
+  description = "Map of plain (non-secret) Lambda environment variable name => value, injected alongside the SSM-resolved ones"
+  default     = {}
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags"
