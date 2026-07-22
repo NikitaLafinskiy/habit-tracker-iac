@@ -40,6 +40,8 @@ resource "aws_ses_domain_identity_verification" "this" {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_region" "current" {}
+
 # Only created when the caller opts in - callers that leave
 # create_notifications false get plain domain/DKIM verification only, same
 # as before this was added.

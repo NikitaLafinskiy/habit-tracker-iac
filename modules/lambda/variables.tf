@@ -55,6 +55,18 @@ variable "ses_identity_arns" {
   default     = []
 }
 
+variable "ses_configuration_set_arns" {
+  type        = list(string)
+  description = <<-EOT
+    ARNs of SES configuration sets the Lambda execution role may reference
+    when sending. A separate grant from ses_identity_arns above - SES
+    authorizes SendEmail/SendRawEmail against the sending identity AND
+    (when ConfigurationSetName is set) the configuration set as two
+    distinct resources, so both need their own Allow statement.
+  EOT
+  default     = []
+}
+
 variable "ssm_parameters" {
   type        = map(string)
   description = "Map of Lambda environment variable name => SSM parameter name to resolve at plan/apply time and inject as that environment variable"

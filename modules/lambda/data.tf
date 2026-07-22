@@ -60,6 +60,25 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
       resources = var.ses_identity_arns
     }
   }
+
+  # Separate from the identity grant above - a SendEmail call that sets
+  # ConfigurationSetName is authorized against both the sending identity
+  # and the configuration set as distinct resources. Missing this one
+  # fails with "not authorized to perform ses:SendEmail on resource
+  # ...:configuration-set/..." even though the identity grant is in place.
+  dynamic "statement" {
+    for_each = length(var.ses_configuration_set_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+      ]
+
+      resources = var.ses_configuration_set_arns
+    }
+  }
 }
 
 data "aws_ssm_parameter" "this" {
