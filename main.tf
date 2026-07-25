@@ -35,12 +35,8 @@ module "lambda_artifacts_bucket" {
   tags               = local.tags
 }
 
-# Bucket for holding the client-side artifacts (e.g. React build) for the
-# app, served via CloudFront. Not public itself - kept at the module's
-# secure defaults (is_public = false, public access block fully on) since
-# CloudFront's Origin Access Control below is the only intended read path.
-# A public bucket policy alongside OAC would let anyone bypass CloudFront
-# entirely via the bucket's own endpoint.
+# Bucket for the client-side artifacts (e.g. React build), served via
+# CloudFront. Not public - OAC below is the only intended read path (see CLAUDE.md).
 module "client_artifacts_bucket" {
   source = "./modules/s3"
 
@@ -87,10 +83,8 @@ module "cloudfront" {
   tags = local.tags
 }
 
-# Scopes bucket access to just this CloudFront distribution via OAC,
-# rather than the generic modules/s3 public-bucket path. Grants PutObject
-# alongside GetObject even though CloudFront (a read-only cache/CDN) never
-# writes back to its origin - flagged, left as-is per explicit instruction.
+# Scopes bucket access to this CloudFront distribution via OAC. PutObject
+# grant is intentional despite CloudFront being read-only (see CLAUDE.md).
 data "aws_iam_policy_document" "client_artifacts_cloudfront_access" {
   statement {
     effect = "Allow"

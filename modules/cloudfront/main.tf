@@ -62,10 +62,8 @@ resource "aws_cloudfront_distribution" "this" {
 
   tags = var.tags
 
-  # Falls back to the CloudFront-issued default certificate (which only
-  # covers *.cloudfront.net, not var.aliases) when no ACM cert is given -
-  # only pass acm_certificate_arn once var.aliases is also set, otherwise
-  # requests to a custom domain will hit a cert mismatch.
+  # Falls back to the CloudFront default cert when acm_certificate_arn is
+  # unset - only pass it once var.aliases is also set (see CLAUDE.md).
   viewer_certificate {
     cloudfront_default_certificate = var.acm_certificate_arn == null
     acm_certificate_arn            = var.acm_certificate_arn

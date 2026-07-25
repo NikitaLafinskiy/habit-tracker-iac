@@ -6,11 +6,8 @@ terraform {
     }
   }
 
-  # Deliberately no `backend` block: this config provisions the remote
-  # state bucket and lock table themselves, so it has to run on local
-  # state until they exist. Once applied, every other Terraform root
-  # (auth/.infra, iac's own root config, ...) points its S3 backend at
-  # the bucket/table created here.
+  # No `backend` block: this config creates the remote state bucket/lock
+  # table itself, so it must run on local state first (see CLAUDE.md).
 }
 
 provider "aws" {

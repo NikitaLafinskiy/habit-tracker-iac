@@ -61,11 +61,8 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
     }
   }
 
-  # Separate from the identity grant above - a SendEmail call that sets
-  # ConfigurationSetName is authorized against both the sending identity
-  # and the configuration set as distinct resources. Missing this one
-  # fails with "not authorized to perform ses:SendEmail on resource
-  # ...:configuration-set/..." even though the identity grant is in place.
+  # Separate from the identity grant above - SendEmail with a
+  # ConfigurationSetName also needs config-set-resource authorization (see CLAUDE.md).
   dynamic "statement" {
     for_each = length(var.ses_configuration_set_arns) > 0 ? [1] : []
     content {
@@ -88,12 +85,8 @@ data "aws_ssm_parameter" "this" {
   with_decryption = true
 }
 
-# aws_lambda_function only diffs on the s3_bucket/s3_key strings, not on the
-# object's actual content - since CI re-uploads to the same key on every
-# build, those strings never change and Terraform would otherwise see no
-# diff at all. Looking up the current object version (the bucket has
-# versioning enabled) and pinning the function to it gives Terraform a
-# value that actually changes on every new upload, so it redeploys.
+# Pins the function to the current object version so Terraform actually
+# sees a diff and redeploys on every CI upload to the same key (see CLAUDE.md).
 data "aws_s3_object" "package" {
   bucket = var.s3_bucket
   key    = var.s3_key
