@@ -4,11 +4,8 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_type   = "AWS_PROXY"
   integration_uri    = var.lambda_invoke_arn
   integration_method = "POST"
-  # StreamLambdaHandler builds its handler via getAwsProxyHandler(), which
-  # deserializes the incoming event as AwsProxyRequest - the shape used by
-  # REST APIs and HTTP API payload format 1.0, not the newer, differently
-  # shaped 2.0 format. Mismatching this causes InvalidRequestEventException
-  # ("not a valid request from Amazon API Gateway") on every call.
+  # Must stay 1.0 - StreamLambdaHandler expects the AwsProxyRequest shape,
+  # not the differently-shaped 2.0 payload format (see CLAUDE.md).
   payload_format_version = "1.0"
 }
 

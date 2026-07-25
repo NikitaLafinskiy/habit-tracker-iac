@@ -1,7 +1,5 @@
-# CloudFront requires its certificate to exist in us-east-1 regardless of
-# which region the rest of the account's infra runs in - the caller must
-# pass an aws.us_east_1 provider alias in, same as modules/route53 does for
-# Route53 Domains.
+# CloudFront certs must live in us-east-1 regardless of the account's
+# default region - caller passes an aws.us_east_1 provider alias (see CLAUDE.md).
 resource "aws_acm_certificate" "this" {
   provider = aws.us_east_1
 

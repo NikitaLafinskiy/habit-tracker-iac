@@ -36,10 +36,8 @@ resource "aws_s3_bucket_policy" "this" {
   bucket = aws_s3_bucket.this.id
   policy = data.aws_iam_policy_document.allow_public_read.json
 
-  # AWS rejects attaching a public bucket policy while the public access
-  # block above is still restrictive - nothing else ties these two
-  # resources together (this one only references aws_s3_bucket.this.id), so
-  # without this the apply order isn't guaranteed.
+  # Explicit dependency: AWS rejects a public policy while the access
+  # block is still restrictive, and nothing else orders them (see CLAUDE.md).
   depends_on = [aws_s3_bucket_public_access_block.this]
 }
 

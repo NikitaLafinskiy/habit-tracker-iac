@@ -1,7 +1,5 @@
-# Lambda-protocol subscriptions are confirmed automatically by AWS as soon as
-# the subscription and matching invoke permission both exist - unlike
-# http/https endpoints, there's no SubscribeURL confirmation handshake for
-# the function to implement.
+# Lambda-protocol subscriptions auto-confirm once both resources exist -
+# no SubscribeURL handshake needed, unlike http/https (see CLAUDE.md).
 resource "aws_sns_topic_subscription" "this" {
   topic_arn = var.topic_arn
   protocol  = "lambda"
