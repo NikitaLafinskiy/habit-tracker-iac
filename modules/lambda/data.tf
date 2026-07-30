@@ -43,7 +43,12 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
         "dynamodb:BatchWriteItem",
       ]
 
-      resources = var.dynamodb_table_arns
+      # Table ARN covers base-table ops; Query/Scan against a GSI need the
+      # index ARN (`…/table/NAME/index/*`) as a separate resource.
+      resources = concat(
+        var.dynamodb_table_arns,
+        [for arn in var.dynamodb_table_arns : "${arn}/index/*"],
+      )
     }
   }
 
