@@ -52,3 +52,23 @@ variable "items" {
   description = "Map of seed-item-key => JSON-encoded DynamoDB item (attribute-value format, e.g. jsonencode({ role = { S = \"ADMIN\" } })) to seed into the table"
   default     = {}
 }
+
+variable "global_secondary_indexes" {
+  type = list(object({
+    name               = string
+    hash_key           = string
+    range_key          = optional(string)
+    projection_type    = optional(string, "ALL")
+    non_key_attributes = optional(list(string), [])
+    read_capacity      = optional(number)
+    write_capacity     = optional(number)
+  }))
+  description = <<EOF
+List of global secondary indexes for the DynamoDB table.
+
+- `projection_type`: One of ALL (default), KEYS_ONLY, or INCLUDE.
+- `non_key_attributes`: Required only when projection_type is INCLUDE.
+- `read_capacity` / `write_capacity`: Only relevant when billing_mode is PROVISIONED.
+EOF
+  default     = []
+}
