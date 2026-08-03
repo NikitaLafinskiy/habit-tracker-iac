@@ -49,6 +49,33 @@ the public access block is still restrictive, and nothing else ties the two
 resources together (the policy only references `aws_s3_bucket.this.id`), so
 without the explicit dependency the apply order isn't guaranteed.
 
+**Lifecycle expiry is opt-in via `expiration_days`** (null by default, so the
+two build-artifact buckets get no lifecycle configuration at all). Only
+`files_artifacts_bucket` sets it, at 4 days — those objects are CSVs the api
+stages for the SQS file-processor pipeline, consumed within minutes, with the
+extra days as slack for a DLQ redrive replaying a batch against the original
+object.
+
+Three details that are easy to get wrong, which is why the module emits three
+rules rather than one `expiration`:
+
+- **On a versioned bucket, `expiration` deletes nothing.** It writes a delete
+  marker and the object's bytes live on as a noncurrent version forever — the
+  rule *hides* data while still billing for it. Every bucket here has
+  `versioning_enabled = true`, so `noncurrent_version_expiration` is what
+  actually removes the data, and it is not optional.
+- **`days` and `expired_object_delete_marker` cannot share an expiration
+  block** — S3 rejects it. Hence the separate `expire-delete-markers` rule,
+  which sweeps the markers left behind once every version under them is gone.
+- **`filter {}` is written explicitly.** The AWS provider treats an omitted
+  filter as a deprecation warning rather than "match everything".
+
+The rule is bucket-wide because the api writes these objects at the root under
+a bare UUID key (`MetricServiceImpl#uploadCsv`) — there is no prefix or `.csv`
+suffix to scope on. If this bucket ever holds a second kind of object, give the
+CSVs a key prefix first and narrow the filter to it, or the new objects inherit
+a 4-day expiry.
+
 ## modules/lambda (data.tf)
 
 - **SES configuration-set IAM statement**: kept as a separate `dynamic
