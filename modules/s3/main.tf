@@ -37,9 +37,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     id     = "expire-objects"
     status = "Enabled"
 
-    # Empty filter = every object in the bucket. Required explicitly by the
-    # AWS provider; omitting it is a deprecation warning, not a default.
-    filter {}
+    # An empty prefix means the whole bucket. The filter block itself is
+    # required by the provider; omitting it is a deprecation warning.
+    filter {
+      prefix = var.expiration_prefix
+    }
 
     expiration {
       days = var.expiration_days
@@ -67,7 +69,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     id     = "expire-delete-markers"
     status = "Enabled"
 
-    filter {}
+    filter {
+      prefix = var.expiration_prefix
+    }
 
     expiration {
       expired_object_delete_marker = true

@@ -45,6 +45,12 @@ variable "expiration_days" {
   default     = null
 }
 
+variable "expiration_prefix" {
+  type        = string
+  description = "Key prefix the expiry applies to. Empty (the default) means the whole bucket; set it when the bucket also holds objects that must not age out."
+  default     = ""
+}
+
 variable "noncurrent_version_expiration_days" {
   type        = number
   description = "How long a noncurrent version survives once expiration_days applies. Only meaningful on a versioned bucket, where plain expiration does not delete anything on its own."
