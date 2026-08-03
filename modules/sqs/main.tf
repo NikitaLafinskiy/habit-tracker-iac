@@ -18,19 +18,12 @@ resource "aws_sqs_queue" "this_deadletter" {
   tags = var.tags
 }
 
-# Lives on the DLQ: which source queues may redrive into it. Valid
-# redrivePermission values are byQueue / allowAll / denyAll (not "deny").
+# Lives on the DLQ: only this module's source queue may redrive into it.
 resource "aws_sqs_queue_redrive_allow_policy" "this" {
   queue_url = aws_sqs_queue.this_deadletter.id
 
-  redrive_allow_policy = jsonencode(
-    var.redrive_permission == "byQueue"
-    ? {
-      redrivePermission = "byQueue"
-      sourceQueueArns   = [aws_sqs_queue.this.arn]
-    }
-    : {
-      redrivePermission = var.redrive_permission
-    }
-  )
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue"
+    sourceQueueArns   = [aws_sqs_queue.this.arn]
+  })
 }
