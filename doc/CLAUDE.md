@@ -67,14 +67,23 @@ rules rather than one `expiration`:
 - **`days` and `expired_object_delete_marker` cannot share an expiration
   block** — S3 rejects it. Hence the separate `expire-delete-markers` rule,
   which sweeps the markers left behind once every version under them is gone.
-- **`filter {}` is written explicitly.** The AWS provider treats an omitted
-  filter as a deprecation warning rather than "match everything".
+- **The `filter` block is written explicitly**, even to say "everything". The
+  AWS provider treats an omitted filter as a deprecation warning rather than a
+  match-all default.
 
-The rule is bucket-wide because the api writes these objects at the root under
-a bare UUID key (`MetricServiceImpl#uploadCsv`) — there is no prefix or `.csv`
-suffix to scope on. If this bucket ever holds a second kind of object, give the
-CSVs a key prefix first and narrow the filter to it, or the new objects inherit
-a 4-day expiry.
+The rule is scoped by `expiration_prefix` to `csv-metrics/`, which is where the
+api writes these objects (`MetricServiceImpl#CSV_KEY_PREFIX`) — so anything else
+stored in this shared bucket later does not inherit a 4-day life. The prefix and
+the rule have to move together: renaming one without the other silently stops
+the cleanup. An empty prefix (the default) means the whole bucket.
+
+**`modules/lambda` also gained `s3_bucket_arns`** for this, granting object-level
+Get/Put/Delete on a bucket the function actually uses. It is deliberately
+distinct from `s3_bucket`, which only locates the deployment package, and is
+object-level only — the bare bucket ARN would also grant ListBucket and
+delete-bucket, which nothing here does. Its `sqs_queue_arns` statement gained
+`sqs:SendMessage` at the same time, since a service can be both ends of its own
+queue (the api enqueues the CSV imports it later consumes).
 
 ## modules/lambda (data.tf)
 
@@ -86,9 +95,14 @@ a 4-day expiry.
   ...:configuration-set/...` even though the identity grant is in place.
 - **`sqs_queue_arns`**: optional list, same pattern as `dynamodb_table_arns` /
   `ses_*`. When non-empty, grants the ReceiveMessage / DeleteMessage /
-  GetQueueAttributes / ChangeMessageVisibility set an SQS event source
-  mapping needs to poll the queue. Callers that only use API Gateway (or
-  SNS) leave it at the default `[]`.
+  GetQueueAttributes / ChangeMessageVisibility set an SQS event source mapping
+  needs to poll the queue, plus `SendMessage` — a service can be both ends of
+  its own queue, as the api is. Callers that only use API Gateway (or SNS)
+  leave it at the default `[]`.
+- **`s3_bucket_arns`**: optional list, object-level Get/Put/Delete on buckets
+  the function actually reads and writes. Distinct from `s3_bucket`, which only
+  locates the deployment package; object-level only, because the bare bucket ARN
+  would also grant ListBucket and delete-bucket.
 - **`data.aws_s3_object.package`**: `aws_lambda_function` only diffs on the
   `s3_bucket`/`s3_key` strings, not on the object's actual content. Since CI
   re-uploads to the same key on every build, those strings never change and

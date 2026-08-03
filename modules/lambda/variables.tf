@@ -67,6 +67,12 @@ variable "ses_configuration_set_arns" {
   default     = []
 }
 
+variable "s3_bucket_arns" {
+  type        = list(string)
+  description = "ARNs of S3 buckets this function reads and writes objects in. Distinct from s3_bucket, which only locates the deployment package."
+  default     = []
+}
+
 variable "sqs_queue_arns" {
   type        = list(string)
   description = <<-EOT

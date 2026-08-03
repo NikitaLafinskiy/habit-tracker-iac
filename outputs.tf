@@ -27,3 +27,13 @@ output "domain_zone_id" {
   description = "Route53 hosted zone ID for the app's registered domain"
   value       = module.domain.zone_id
 }
+
+output "files_artifacts_bucket" {
+  description = "Name of the bucket holding user-uploaded files (CSV imports under csv-metrics/)"
+  value       = module.files_artifacts_bucket.name
+}
+
+output "files_artifacts_bucket_arn" {
+  description = "ARN of the user-uploaded files bucket, for granting a service access to it"
+  value       = module.files_artifacts_bucket.arn
+}

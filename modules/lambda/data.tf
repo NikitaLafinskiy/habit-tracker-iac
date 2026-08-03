@@ -82,8 +82,25 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
     }
   }
 
-  # SQS event source mapping poller permissions - see doc/CLAUDE.md
-  # "modules/lambda".
+  # Object-level only: the bucket ARN itself would grant bucket operations
+  # (ListBucket, delete-bucket) that no service here performs.
+  dynamic "statement" {
+    for_each = length(var.s3_bucket_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+      ]
+
+      resources = [for arn in var.s3_bucket_arns : "${arn}/*"]
+    }
+  }
+
+  # Poller permissions for an event source mapping, plus SendMessage: a service
+  # can be both ends of its own queue (the api enqueues its own CSV imports).
   dynamic "statement" {
     for_each = length(var.sqs_queue_arns) > 0 ? [1] : []
     content {
@@ -94,6 +111,7 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
         "sqs:DeleteMessage",
         "sqs:GetQueueAttributes",
         "sqs:ChangeMessageVisibility",
+        "sqs:SendMessage",
       ]
 
       resources = var.sqs_queue_arns
