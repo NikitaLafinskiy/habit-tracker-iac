@@ -67,7 +67,7 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
   }
 
   # Separate from the identity grant above - SendEmail with a
-  # ConfigurationSetName also needs config-set-resource authorization (see CLAUDE.md).
+  # ConfigurationSetName also needs config-set-resource authorization (see doc/CLAUDE.md).
   dynamic "statement" {
     for_each = length(var.ses_configuration_set_arns) > 0 ? [1] : []
     content {
@@ -81,6 +81,24 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
       resources = var.ses_configuration_set_arns
     }
   }
+
+  # SQS event source mapping poller permissions - see doc/CLAUDE.md
+  # "modules/lambda".
+  dynamic "statement" {
+    for_each = length(var.sqs_queue_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:ChangeMessageVisibility",
+      ]
+
+      resources = var.sqs_queue_arns
+    }
+  }
 }
 
 data "aws_ssm_parameter" "this" {
@@ -91,7 +109,7 @@ data "aws_ssm_parameter" "this" {
 }
 
 # Pins the function to the current object version so Terraform actually
-# sees a diff and redeploys on every CI upload to the same key (see CLAUDE.md).
+# sees a diff and redeploys on every CI upload to the same key (see doc/CLAUDE.md).
 data "aws_s3_object" "package" {
   bucket = var.s3_bucket
   key    = var.s3_key

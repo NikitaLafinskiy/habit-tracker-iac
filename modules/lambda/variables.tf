@@ -67,6 +67,16 @@ variable "ses_configuration_set_arns" {
   default     = []
 }
 
+variable "sqs_queue_arns" {
+  type        = list(string)
+  description = <<-EOT
+    ARNs of SQS queues the Lambda execution role may poll (event source
+    mapping). Grants the ReceiveMessage/DeleteMessage/GetQueueAttributes/
+    ChangeMessageVisibility set AWS requires for an SQS trigger.
+  EOT
+  default     = []
+}
+
 variable "ssm_parameters" {
   type        = map(string)
   description = "Map of Lambda environment variable name => SSM parameter name to resolve at plan/apply time and inject as that environment variable"

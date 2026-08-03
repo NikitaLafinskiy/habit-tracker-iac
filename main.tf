@@ -36,7 +36,7 @@ module "lambda_artifacts_bucket" {
 }
 
 # Bucket for the client-side artifacts (e.g. React build), served via
-# CloudFront. Not public - OAC below is the only intended read path (see CLAUDE.md).
+# CloudFront. Not public - OAC below is the only intended read path (see doc/CLAUDE.md).
 module "client_artifacts_bucket" {
   source = "./modules/s3"
 
@@ -84,7 +84,7 @@ module "cloudfront" {
 }
 
 # Scopes bucket access to this CloudFront distribution via OAC. PutObject
-# grant is intentional despite CloudFront being read-only (see CLAUDE.md).
+# grant is intentional despite CloudFront being read-only (see doc/CLAUDE.md).
 data "aws_iam_policy_document" "client_artifacts_cloudfront_access" {
   statement {
     effect = "Allow"
