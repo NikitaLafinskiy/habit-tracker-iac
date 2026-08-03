@@ -45,6 +45,15 @@ module "client_artifacts_bucket" {
   tags               = local.tags
 }
 
+# Bucket for storing files uploaded by users
+module "files_artifacts_bucket" {
+  source = "./modules/s3"
+
+  name               = "habit-tracker-files-artifacts"
+  versioning_enabled = true
+  tags               = local.tags
+}
+
 # CloudFront needs its certificate in us-east-1 regardless of var.aws_region.
 module "client_certificate" {
   source = "./modules/acm"
