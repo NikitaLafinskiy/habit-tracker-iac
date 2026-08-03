@@ -32,21 +32,6 @@ variable "dlq_name" {
   description = "Name of the dead letter queue"
 }
 
-variable "redrive_permission" {
-  type        = string
-  description = <<-EOT
-    DLQ redrive allow policy permission. AWS accepts byQueue, allowAll, or
-    denyAll. byQueue (the default) restricts redrive to this module's source
-    queue and sets sourceQueueArns accordingly.
-  EOT
-  default     = "byQueue"
-
-  validation {
-    condition     = contains(["byQueue", "allowAll", "denyAll"], var.redrive_permission)
-    error_message = "redrive_permission must be one of: byQueue, allowAll, denyAll."
-  }
-}
-
 variable "receive_wait_time_seconds" {
   type        = number
   description = "Receive wait time seconds for the SQS queue"
