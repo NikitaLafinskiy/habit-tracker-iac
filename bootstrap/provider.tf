@@ -7,7 +7,7 @@ terraform {
   }
 
   # No `backend` block: this config creates the remote state bucket/lock
-  # table itself, so it must run on local state first (see CLAUDE.md).
+  # table itself, so it must run on local state first (see doc/CLAUDE.md).
 }
 
 provider "aws" {

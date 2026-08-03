@@ -37,7 +37,7 @@ resource "aws_s3_bucket_policy" "this" {
   policy = data.aws_iam_policy_document.allow_public_read.json
 
   # Explicit dependency: AWS rejects a public policy while the access
-  # block is still restrictive, and nothing else orders them (see CLAUDE.md).
+  # block is still restrictive, and nothing else orders them (see doc/CLAUDE.md).
   depends_on = [aws_s3_bucket_public_access_block.this]
 }
 

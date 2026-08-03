@@ -1,5 +1,5 @@
 # Lambda-protocol subscriptions auto-confirm once both resources exist -
-# no SubscribeURL handshake needed, unlike http/https (see CLAUDE.md).
+# no SubscribeURL handshake needed, unlike http/https (see doc/CLAUDE.md).
 resource "aws_sns_topic_subscription" "this" {
   topic_arn = var.topic_arn
   protocol  = "lambda"

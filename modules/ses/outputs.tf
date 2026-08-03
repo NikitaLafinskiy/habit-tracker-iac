@@ -11,7 +11,7 @@ output "configuration_set_name" {
 }
 
 # Constructed - the SESv1 aws_ses_configuration_set has no arn attribute
-# of its own, but AWS's ARN format is fixed/documented (see CLAUDE.md).
+# of its own, but AWS's ARN format is fixed/documented (see doc/CLAUDE.md).
 output "configuration_set_arn" {
   value = try(
     "arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:configuration-set/${aws_ses_configuration_set.this[0].name}",

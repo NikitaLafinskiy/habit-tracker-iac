@@ -1,5 +1,5 @@
 # CloudFront certs must live in us-east-1 regardless of the account's
-# default region - caller passes an aws.us_east_1 provider alias (see CLAUDE.md).
+# default region - caller passes an aws.us_east_1 provider alias (see doc/CLAUDE.md).
 resource "aws_acm_certificate" "this" {
   provider = aws.us_east_1
 

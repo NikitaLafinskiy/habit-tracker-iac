@@ -6,7 +6,7 @@ resource "aws_route53domains_registered_domain" "this" {
   domain_name = var.domain_name
   auto_renew  = var.auto_renew
   # Defaults to false, not the provider's true - some TLDs (e.g. .click)
-  # reject EnableDomainTransferLock outright and fail the apply (see CLAUDE.md).
+  # reject EnableDomainTransferLock outright and fail the apply (see doc/CLAUDE.md).
   transfer_lock = var.transfer_lock
   tags          = var.tags
 }
