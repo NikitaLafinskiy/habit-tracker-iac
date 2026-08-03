@@ -22,6 +22,59 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
+# Opt-in: only created when expiration_days is set, so the build-artifact
+# buckets keep no lifecycle configuration at all. See doc/CLAUDE.md for why a
+# versioned bucket needs all three rules rather than just an expiration.
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  count  = var.expiration_days == null ? 0 : 1
+  bucket = aws_s3_bucket.this.id
+
+  # Noncurrent-version rules only mean anything once versioning exists, and
+  # nothing else orders the two resources.
+  depends_on = [aws_s3_bucket_versioning.this]
+
+  rule {
+    id     = "expire-objects"
+    status = "Enabled"
+
+    # Empty filter = every object in the bucket. Required explicitly by the
+    # AWS provider; omitting it is a deprecation warning, not a default.
+    filter {}
+
+    expiration {
+      days = var.expiration_days
+    }
+
+    # Load-bearing on a versioned bucket. `expiration` above only writes a
+    # delete marker there - the object's bytes survive as a noncurrent version
+    # indefinitely, so without this the rule hides data instead of deleting it
+    # and keeps billing for it.
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_expiration_days
+    }
+
+    # A failed multipart upload otherwise leaves parts that never show up in
+    # the console and never expire on their own.
+    abort_incomplete_multipart_upload {
+      days_after_initiation = var.abort_incomplete_multipart_upload_days
+    }
+  }
+
+  # A separate rule because S3 rejects `days` and `expired_object_delete_marker`
+  # in the same expiration block. Sweeps up the markers the rule above leaves
+  # behind once every version beneath them is gone.
+  rule {
+    id     = "expire-delete-markers"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 

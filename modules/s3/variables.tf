@@ -39,6 +39,24 @@ variable "restrict_public_buckets" {
   default     = true
 }
 
+variable "expiration_days" {
+  type        = number
+  description = "Delete objects this many days after creation. null (the default) creates no lifecycle configuration at all, which is what build-artifact buckets want."
+  default     = null
+}
+
+variable "noncurrent_version_expiration_days" {
+  type        = number
+  description = "How long a noncurrent version survives once expiration_days applies. Only meaningful on a versioned bucket, where plain expiration does not delete anything on its own."
+  default     = 1
+}
+
+variable "abort_incomplete_multipart_upload_days" {
+  type        = number
+  description = "Days before an unfinished multipart upload's orphaned parts are aborted. Only applied when expiration_days is set."
+  default     = 7
+}
+
 variable "is_public" {
   type        = bool
   description = "Whether the bucket should be public (adds a public read policy and website config)"

@@ -45,12 +45,21 @@ module "client_artifacts_bucket" {
   tags               = local.tags
 }
 
-# Bucket for storing files uploaded by users
+# Bucket for storing files uploaded by users. Today that is only the CSVs the
+# api stages for the SQS file-processor pipeline, which the queue consumes
+# within minutes - so nothing here is durable storage and everything expires.
+# 4 days leaves room for a DLQ redrive to replay a batch against the original
+# object; past that the objects are dead weight, and they are user data.
+#
+# The rule is bucket-wide because the api writes these at the root under a bare
+# UUID key (MetricServiceImpl#uploadCsv). If this bucket ever gains a second
+# kind of object, give the CSVs a key prefix first and scope the rule to it.
 module "files_artifacts_bucket" {
   source = "./modules/s3"
 
   name               = "habit-tracker-files-artifacts"
   versioning_enabled = true
+  expiration_days    = 4
   tags               = local.tags
 }
 
