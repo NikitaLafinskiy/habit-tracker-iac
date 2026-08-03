@@ -1,6 +1,6 @@
 variable "name" {
   type        = string
-  description = "Name of the SNS topic"
+  description = "Name of the main SQS queue"
 }
 
 variable "tags" {
@@ -32,10 +32,19 @@ variable "dlq_name" {
   description = "Name of the dead letter queue"
 }
 
-variable "redrivePermission" {
+variable "redrive_permission" {
   type        = string
-  description = "Redrive permission for the SQS queue"
-  default     = "deny"
+  description = <<-EOT
+    DLQ redrive allow policy permission. AWS accepts byQueue, allowAll, or
+    denyAll. byQueue (the default) restricts redrive to this module's source
+    queue and sets sourceQueueArns accordingly.
+  EOT
+  default     = "byQueue"
+
+  validation {
+    condition     = contains(["byQueue", "allowAll", "denyAll"], var.redrive_permission)
+    error_message = "redrive_permission must be one of: byQueue, allowAll, denyAll."
+  }
 }
 
 variable "receive_wait_time_seconds" {
@@ -44,8 +53,8 @@ variable "receive_wait_time_seconds" {
   default     = 0
 }
 
-variable "maxReceiveCount" {
+variable "max_receive_count" {
   type        = number
-  description = "Max receive count for the SQS queue"
+  description = "Max receive count before a message is moved to the DLQ"
   default     = 10
 }
