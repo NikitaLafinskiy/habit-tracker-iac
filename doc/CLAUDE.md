@@ -111,6 +111,43 @@ queue (the api enqueues the CSV imports it later consumes).
   function to it gives Terraform a value that actually changes on every new
   upload, so it redeploys.
 
+## modules/lambda (keep_warm)
+
+Optional `keep_warm` (bool, default `false`) plus `keep_warm_interval_minutes`
+(number, default `5`). When enabled, `keep_warm.tf` stands up an EventBridge
+`aws_cloudwatch_event_rule` on a `rate(N minutes)` schedule that invokes the
+function, so an execution environment stays live between real requests. This is
+a deliberate, low-cost substitute for provisioned concurrency, which bills for a
+reserved environment around the clock — the ping only pays for one short
+invocation per interval.
+
+- **Targets the alias, never `$LATEST`.** The target arn is
+  `aws_lambda_alias.live.arn`, and the `aws_lambda_permission` carries the
+  matching `qualifier`. Real traffic (API Gateway, SQS, SNS) resolves through
+  the alias to a published, SnapStart-restored version; pinging `$LATEST` would
+  keep a different environment warm than the one that actually serves requests.
+- **No custom `input`** — EventBridge delivers its standard scheduled-event
+  payload (`source: "aws.events"`, `detail-type: "Scheduled Event"`). **This
+  matters:** the services' `LambdaEventDispatcher` raises
+  `UnsupportedLambdaEventException` (failing the invocation) for any event no
+  strategy claims, so this only works because each service carries a
+  `KeepWarmEventStrategy` (`lambda/dispatch/strategy`) that matches that shape
+  via the pre-existing `LambdaEventDiscriminators.isEventBridgeEvent(...,
+  "aws.events", "Scheduled Event")` and returns an empty body without doing
+  work. It is the "one new strategy" seam the dispatch package is built around
+  (see each service's `doc/CLAUDE.md` "Lambda event dispatch"). The warmup rule
+  is the only scheduled EventBridge rule on either function, so that shape
+  unambiguously means "warmup"; a future scheduled job that needs real work
+  would want a distinguishing `detail`/`input` and its own strategy so this one
+  does not swallow it.
+- **`rate()` pluralisation**: `rate(1 minute)` is singular, `rate(5 minutes)`
+  plural — AWS rejects the wrong form — so the schedule expression switches on
+  the interval. `keep_warm_interval_minutes` is validated as a whole number ≥ 1
+  (EventBridge's `rate()` floor).
+- **Everything is `count`-gated on `var.keep_warm`**, so a caller that leaves it
+  at the default adds no EventBridge resources at all, and the
+  `keep_warm_rule_arn` output is `null`.
+
 ## modules/api-integration
 
 `payload_format_version` must stay `"1.0"`. `StreamLambdaHandler` builds its

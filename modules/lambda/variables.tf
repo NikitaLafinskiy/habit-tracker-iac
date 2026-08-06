@@ -95,6 +95,23 @@ variable "environment_variables" {
   default     = {}
 }
 
+variable "keep_warm" {
+  type        = bool
+  description = "When true, an EventBridge rule invokes the function's alias on an interval to keep an execution environment warm - a cheap stand-in for provisioned concurrency. See doc/CLAUDE.md."
+  default     = false
+}
+
+variable "keep_warm_interval_minutes" {
+  type        = number
+  description = "Interval, in minutes, between keep_warm pings. Ignored unless keep_warm is true."
+  default     = 5
+
+  validation {
+    condition     = var.keep_warm_interval_minutes >= 1 && floor(var.keep_warm_interval_minutes) == var.keep_warm_interval_minutes
+    error_message = "keep_warm_interval_minutes must be a whole number of minutes >= 1 (EventBridge rate() has a 1-minute minimum)."
+  }
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags"
