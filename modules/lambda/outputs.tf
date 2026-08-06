@@ -22,3 +22,8 @@ output "alias_arn" {
 output "published_version" {
   value = aws_lambda_function.this.version
 }
+
+output "keep_warm_rule_arn" {
+  description = "ARN of the EventBridge warmup rule, or null when keep_warm is disabled"
+  value       = var.keep_warm ? aws_cloudwatch_event_rule.keep_warm[0].arn : null
+}
