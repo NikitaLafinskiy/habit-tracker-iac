@@ -14,6 +14,10 @@ resource "aws_dynamodb_table" "this" {
     }
   }
 
+  point_in_time_recovery {
+    enabled = var.point_in_time_recovery_enabled
+  }
+
   dynamic "global_secondary_index" {
     for_each = var.global_secondary_indexes
     content {
