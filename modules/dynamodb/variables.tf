@@ -41,6 +41,25 @@ variable "attributes" {
   default     = []
 }
 
+variable "point_in_time_recovery_enabled" {
+  type        = bool
+  description = <<EOF
+Whether to enable point-in-time recovery (continuous backups), giving a 35-day
+restore window.
+
+Defaults to **true**: these tables hold the only copy of user-entered history,
+and PITR is billed on table size (eu-central-1: $0.2448 per GB-month), which for
+tables of this size is a fraction of a cent per month. Opting a table out should
+be a deliberate, justified act - set it to false explicitly rather than letting
+it default off.
+
+Two things it does not do: it only protects **forward** from the moment it is
+enabled (there is no retroactive window), and it is not a substitute for an
+on-demand backup before a destructive migration.
+EOF
+  default     = true
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags"
