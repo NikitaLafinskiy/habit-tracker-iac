@@ -4,6 +4,167 @@ Implementation notes distilled from comments that used to live inline in the
 Terraform source. Each entry is referenced from a short 1-2 line comment at
 its original location.
 
+## Environments
+
+Two environments, `prod` and `dev`, in **one AWS account**, separated by name
+suffix and by state file. Every Terraform root here (`iac`, `api/.infra`,
+`auth/.infra`) follows the same three-part convention:
+
+| | prod | dev |
+|---|---|---|
+| state key | `<root>/terraform.tfstate` | `<root>/terraform.dev.tfstate` |
+| backend config | `backend.prod.hcl` | `backend.dev.hcl` |
+| var file | `terraform.prod.tfvars` | `terraform.dev.tfvars` |
+| `var.environment` | `"prod"` | `"dev"` |
+| name suffix | none | `-dev` |
+
+```bash
+terraform init -reconfigure -backend-config=backend.dev.hcl
+terraform plan -var-file=terraform.dev.tfvars
+```
+
+- **A var file alone would not have been enough, and getting this wrong
+  destroys prod.** `terraform.tfvars` used to auto-load, and the backend `key`
+  was hardcoded. Applying a dev var file against that single key would not
+  build a second environment - Terraform would read the existing prod
+  resources out of state and *rename* them to `-dev`, which for a DynamoDB
+  table means destroy-and-recreate. The state key is what separates the
+  environments; the var file only decides what the names look like.
+- **`key` is the only part of the backend supplied at init.** Bucket, region
+  and lock table stay in `backend.tf` because they are the same everywhere.
+  This does cost the "init needs no flags" property the old hardcoded key had
+  - that was a deliberate trade, and `-reconfigure` is in the documented
+  command so a re-init between environments cannot silently reuse the
+  previous one's state.
+- **No tfvars file auto-loads any more**, and `var.environment` has no
+  default. An apply that forgets `-var-file` therefore fails on a missing
+  required variable instead of silently picking an environment.
+- **Prod names are unsuffixed, so nothing in prod is renamed.** `local.suffix`
+  is `""` for prod and `"-dev"` otherwise. Adopting this on an existing prod
+  state is a no-op apart from the new `Environment` tag.
+- **Per-service roots read the shared state key that matches their own
+  environment** (`data.terraform_remote_state.iac`, keyed off
+  `var.environment`), and each asserts `outputs.environment` matches via a
+  `terraform_data` precondition. That catches a dev service wired to the prod
+  API Gateway. It cannot catch the remaining hole - initialising with
+  `backend.prod.hcl` and applying `terraform.dev.tfvars` - because a root
+  cannot read its own backend key. CI never diverges (both are derived from
+  the branch, below); by hand, the plan for that mistake is wall-to-wall
+  destroy/create and must not be approved.
+
+### What dev does not get
+
+Dev is **backend-only**: its own API Gateway, Lambdas, tables, queues and
+files bucket, reached at the gateway's `execute-api` URL with the client run
+locally against it.
+
+- **No domain, ACM certificate, CloudFront distribution or client bucket.**
+  These are `count = local.is_prod ? 1 : 0` in the root. There is one
+  registered domain, so `modules/route53` in particular cannot run twice.
+- **No SES identity, DKIM records or bounce/complaint topic** (same treatment
+  in `auth/.infra`). A domain cannot be verified twice, and two states
+  managing the same `_amazonses` TXT record would flap it on every apply.
+  Dev sends through prod's already-verified identities, passed in as
+  `additional_ses_identity_arns`. The cost is that dev has no bounce or
+  complaint handling.
+- **No `keep_warm`.** The EventBridge ping exists to hide cold starts from
+  users; dev has none, and it bills per invocation.
+- **No point-in-time recovery** on dev tables - set explicitly to `false` per
+  table rather than left to the module's `true` default, since dev data is
+  disposable and PITR is billed per GB-month.
+
+### Deployed configuration: a Spring profile per environment
+
+Each service ships `application-prod.yml` and `application-dev.yml`, and the
+only thing Terraform injects is `SPRING_PROFILES_ACTIVE = var.environment`. So
+**one artifact serves both environments** with no per-environment build, and
+every environment's values are greppable in its own file.
+
+**`application.yml` holds nothing environment-specific, and that is the point.**
+It used to carry the prod queue URL, bucket and table names as committed
+defaults, with Terraform overriding them per environment. That worked, but it
+failed in the wrong direction: a mistyped or dropped override did not break the
+dev function, it silently pointed it at **prod's** tables and queue. With the
+values moved out, a Lambda with no `SPRING_PROFILES_ACTIVE` fails to start on an
+unresolvable placeholder instead.
+
+What stays in `application.yml` is what genuinely does not vary: `aws.region`,
+`dynamodb.endpoint` (the regional service endpoint - same in both environments
+by construction, since they share an account and a region), Jackson/management
+settings, and `ses.configuration-set`, whose value only exists as a
+Terraform-created resource and so is still injected.
+
+Table names are part of the per-environment set: they used to be `private
+static final String` constants in the repositories, which would have pointed
+the dev Lambdas at the prod tables. They are now `dynamodb.tables.*`
+properties.
+
+**The trade-off:** a resource renamed in `terraform.<env>.tfvars` must also be
+renamed in the matching `application-<env>.yml` - Terraform no longer feeds the
+name in from `module.sqs.queue_url` and friends. That is the same manual-sync
+rule `application.yml` already carried for the prod queue and bucket, now
+applied per environment. A drift shows up as a runtime AccessDenied or
+ResourceNotFound in that environment only, never as a cross-environment write.
+
+Tests were already configured by `src/test/resources/application.properties`
+in each repo; the table names the DynamoDB Local fixtures provision were added
+there, alongside placeholder queue/bucket values that are never actually
+called. No test profile was introduced - that file already owned this job.
+
+### Manual prerequisites for a new environment
+
+Terraform reads the JWT signing secrets from SSM; it never mints them, so
+they will not exist for a fresh environment. Create them before the first
+`auth` apply:
+
+```bash
+aws ssm put-parameter --type SecureString --name /services/auth-dev/jwt/access-secret  --value "$(openssl rand -hex 32)"
+aws ssm put-parameter --type SecureString --name /services/auth-dev/jwt/refresh-secret --value "$(openssl rand -hex 32)"
+```
+
+`api/.infra` reads the access secret only - it verifies tokens auth mints and
+never issues them - so both roots must name the same parameter.
+
+### Apply order
+
+The per-service roots read the shared root's outputs, so it goes first:
+
+1. `iac` with `backend.dev.hcl` / `terraform.dev.tfvars`
+2. the SSM parameters above
+3. `auth/.infra`, then `api/.infra` (either order; `auth`'s var file names the
+   api queue as a literal, so the queue need not exist at plan time)
+
+### CI
+
+The environment is **derived from the ref, never passed in**: `refs/heads/dev`
+is dev, everything else is prod. That one expression picks the backend config,
+the var file and the GitHub environment the `vars.*` come from, so the three
+cannot be paired wrongly.
+
+- **Prod is unchanged.** Plan on a PR to `main`, apply only on a manual
+  `workflow_dispatch` on `main` - still the approval gate, since this repo's
+  plan has no required-reviewer environment protection.
+- **Dev applies on a push to `dev`,** with no gate. That is the point of a
+  throwaway environment.
+- **A dev push deploys through the service's `java.yaml`, not
+  `terraform.yaml`.** The Lambda tracks its artifact's S3 object version
+  (`modules/lambda/data.tf`), so publishing a jar does not reach the function
+  until Terraform applies. `java.yaml` therefore chains build → publish →
+  `deploy-dev`, which calls this repo's reusable
+  `terraform-plan-apply.yaml`. `terraform.yaml` keeps its prod-only triggers
+  rather than racing that chain for the state lock; dispatching it from `dev`
+  is the escape hatch for an infra-only dev apply.
+- **`vars.LAMBDA_ARTIFACT_S3_BUCKET` and friends are GitHub *environment*
+  variables**, not repo variables, so each repo needs `dev` and `prod`
+  environments defined with `AWS_REGION`, `TF_STATE_S3_BUCKET`,
+  `LAMBDA_ARTIFACT_S3_BUCKET` and `LAMBDA_ARTIFACT_S3_KEY`. Dev's artifact
+  bucket is `habit-tracker-lambda-artifacts-dev`; the key within it is the
+  same as prod's.
+- **`concurrency` is grouped per repo + root + environment** with
+  `cancel-in-progress: false`. Two pushes to `dev` in quick succession would
+  otherwise race for the DynamoDB state lock and one would fail outright
+  rather than queueing.
+
 ## Root (main.tf)
 
 - **client_artifacts_bucket**: Deliberately not public - left at the s3

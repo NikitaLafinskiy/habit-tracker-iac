@@ -1,3 +1,8 @@
+output "environment" {
+  description = "Environment this state holds (prod or dev) - read by per-service roots so they cannot pair a dev service with prod shared infrastructure"
+  value       = var.environment
+}
+
 output "api_gateway_id" {
   description = "ID of the shared API Gateway"
   value       = module.api_gateway.api_id
@@ -24,8 +29,8 @@ output "lambda_artifacts_bucket" {
 }
 
 output "domain_zone_id" {
-  description = "Route53 hosted zone ID for the app's registered domain"
-  value       = module.domain.zone_id
+  description = "Route53 hosted zone ID for the app's registered domain. Null outside prod - the domain is registered once and dev has no DNS of its own."
+  value       = one(module.domain[*].zone_id)
 }
 
 output "files_artifacts_bucket" {

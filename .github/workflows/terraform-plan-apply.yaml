@@ -1,8 +1,8 @@
 name: Terraform plan/apply
 run-name: ${{ github.ref_name }}-${{ github.actor }}
 
-# Triggers directly on this repo's own PRs/dispatches (self plan/apply of
-# main.tf) *and* stays callable by other repos (auth/api/client's own
+# Triggers directly on this repo's own PRs/pushes/dispatches (self plan/apply
+# of main.tf) *and* stays callable by other repos (auth/api/client's own
 # terraform.yaml `uses: NikitaLafinskiy/habit-tracker-iac/.github/workflows/
 # terraform-plan-apply.yaml@main`) - one file instead of a separate trigger
 # wrapper, since workflow_call can coexist with other trigger types in the
@@ -11,9 +11,17 @@ run-name: ${{ github.ref_name }}-${{ github.actor }}
 # populated when actually invoked via workflow_call (or workflow_dispatch
 # with matching declared inputs) - a plain pull_request run of this file
 # has neither.
+#
+# Which environment a run targets is derived from the ref, never passed in:
+# the dev branch is the dev environment and everything else is prod. That
+# picks the backend key (backend.<env>.hcl), the var file
+# (terraform.<env>.tfvars) and the GitHub environment the vars come from, so
+# the three cannot be paired wrongly - see doc/CLAUDE.md "Environments".
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [dev]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -41,14 +49,24 @@ on:
       iac-modules-deploy-key:
         required: false
 
+# One in-flight run per root per environment. Two pushes to dev in quick
+# succession would otherwise race for the state lock and one would fail on a
+# lock it can never acquire, rather than simply queueing.
+concurrency:
+  group: terraform-${{ github.repository }}-${{ inputs.working-directory || '.' }}-${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
+  cancel-in-progress: false
+
 jobs:
   plan:
     runs-on: ubuntu-22.04
+    environment: ${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory || '.' }}
     env:
+      TF_STATE_S3_BUCKET: ${{ vars.TF_STATE_S3_BUCKET }}
       TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+      TF_ENV: ${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
 
     steps:
       - name: Checkout code
@@ -69,7 +87,7 @@ jobs:
           terraform-version: ${{ inputs.terraform-version || '1.9.8' }}
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure -backend-config="backend.${TF_ENV}.hcl"
 
       - name: Check formatting
         run: terraform fmt -check -recursive
@@ -78,35 +96,44 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false -out=tfplan
+        run: terraform plan -input=false -var-file="terraform.${TF_ENV}.tfvars" -out=tfplan
 
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan
+          name: tfplan-${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
           path: ${{ inputs.working-directory || '.' }}/tfplan
-          # Apply waits on a human manually dispatching this workflow, which
-          # can easily span a weekend - keep the plan around long enough to
-          # survive that wait.
+          # A prod apply waits on a human manually dispatching this workflow,
+          # which can easily span a weekend - keep the plan around long enough
+          # to survive that wait.
           retention-days: 5
 
   apply:
     needs: plan
     runs-on: ubuntu-22.04
-    # This repo is private on a plan without required-reviewer environment
-    # protection, so `environment:` alone doesn't hold this for approval -
-    # it would just run straight through after plan. Gating on an explicit
-    # workflow_dispatch is the manual approval: apply only runs when a human
-    # opens this workflow on main and clicks "Run workflow", never off the
-    # back of a plain push or PR. github.event_name reflects the original
-    # triggering event even across a workflow_call boundary, so this gate
-    # works identically for a remote caller's own workflow_dispatch too.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: ${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
+    # Prod is unchanged: this repo is private on a plan without
+    # required-reviewer environment protection, so `environment:` alone
+    # doesn't hold an apply for approval - it would just run straight through
+    # after plan. Gating on an explicit workflow_dispatch is the manual
+    # approval: prod applies only when a human opens this workflow on main and
+    # clicks "Run workflow", never off the back of a push or PR.
+    # github.event_name reflects the original triggering event even across a
+    # workflow_call boundary, so this gate works identically for a remote
+    # caller's own workflow_dispatch too.
+    #
+    # Dev is deliberately not gated that way: a push to the dev branch applies,
+    # which is the whole point of having a throwaway environment.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
     defaults:
       run:
         working-directory: ${{ inputs.working-directory || '.' }}
     env:
+      TF_STATE_S3_BUCKET: ${{ vars.TF_STATE_S3_BUCKET }}
       TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+      TF_ENV: ${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
 
     steps:
       - name: Checkout code
@@ -122,12 +149,12 @@ jobs:
           terraform-version: ${{ inputs.terraform-version || '1.9.8' }}
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure -backend-config="backend.${TF_ENV}.hcl"
 
       - name: Download plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan
+          name: tfplan-${{ github.ref == 'refs/heads/dev' && 'dev' || 'prod' }}
           path: ${{ inputs.working-directory || '.' }}
 
       - name: Terraform Apply
