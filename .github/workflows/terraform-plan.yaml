@@ -45,7 +45,12 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+    # No `environment:` on purpose. A plan deploys nothing, and declaring one
+    # would subject it to the prod environment's deployment branch rule - which
+    # a pull_request can never satisfy, since its ref is refs/pull/N/merge and
+    # never refs/heads/main. The apply workflow keeps the environment, which is
+    # where that gate belongs. Both vars below are repo-level, so nothing is
+    # lost by dropping it.
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
