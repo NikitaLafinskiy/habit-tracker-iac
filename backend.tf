@@ -1,12 +1,11 @@
 terraform {
-  # Points at the bucket/table provisioned by bootstrap/ (see
-  # bootstrap/terraform.tfvars for the actual names used). Hardcoded here
-  # so `terraform init` needs no -backend-config flags.
+  # Bucket/table are provisioned by bootstrap/ (see bootstrap/terraform.tfvars
+  # for the actual names). The state key is the only per-environment part, so
+  # it is supplied at init instead of being hardcoded here - see
+  # doc/CLAUDE.md "Environments".
   backend "s3" {
     bucket         = "habit-tracker-statetf"
-    key            = "iac/terraform.tfstate"
     region         = "eu-central-1"
     dynamodb_table = "habit-tracker-locktf"
   }
 }
-

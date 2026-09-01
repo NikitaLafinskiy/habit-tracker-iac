@@ -1,8 +1,12 @@
 name: Java CI
 description: >
-  Shared setup, Checkstyle, and test steps for Gradle-based Java
+  Shared setup, formatting, lint, and test steps for Gradle-based Java
   services/libraries across repos. Repo-specific steps (packaging,
   publishing) stay in each repo's own workflow.
+
+  Three gates, in cheapest-first order: Spotless (formatting), Checkstyle
+  (semantic rules only), then tests. Error Prone needs no step of its own -
+  it runs inside javac, so compileJava enforces it on the way to the tests.
 
 inputs:
   java-version:
@@ -18,6 +22,14 @@ runs:
         java-version: ${{ inputs.java-version }}
         distribution: 'adopt'
         cache: gradle
+
+    - name: Format check (Spotless)
+      shell: bash
+      run: |
+        if ! ./gradlew spotlessCheck --no-daemon; then
+          echo "::error::Formatting differs from google-java-format (aosp). Run './gradlew spotlessApply' and commit the result."
+          exit 1
+        fi
 
     - name: Checkstyle check
       shell: bash
