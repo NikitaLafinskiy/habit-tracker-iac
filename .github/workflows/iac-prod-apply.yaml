@@ -1,0 +1,21 @@
+name: Prod apply
+run-name: ${{ github.ref_name }}-${{ github.actor }}
+
+# workflow_dispatch-only is the approval gate: this repo is private on a plan
+# without required-reviewer environment protection, so a human opening this
+# workflow and clicking "Run workflow" is what stands in for one.
+#
+# Restrict it to main with a deployment branch rule on the prod GitHub
+# environment - the guard belongs there, not in a job `if:` that would show up
+# as a skipped job on every other path.
+on:
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform-apply.yaml
+    with:
+      environment: prod
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

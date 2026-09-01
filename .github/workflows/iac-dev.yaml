@@ -1,0 +1,17 @@
+name: Dev apply
+run-name: ${{ github.ref_name }}-${{ github.actor }}
+
+# The whole dev path for this repo's own root. Unconditional: pushing to dev
+# applies dev, which is the point of a throwaway environment.
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform-apply.yaml
+    with:
+      environment: dev
+    secrets:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

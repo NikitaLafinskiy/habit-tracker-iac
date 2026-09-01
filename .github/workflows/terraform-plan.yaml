@@ -1,0 +1,86 @@
+name: Terraform plan
+run-name: ${{ github.ref_name }}-${{ github.actor }}
+
+# Plan only. Callable from this repo and from api/auth's own .infra workflows.
+#
+# `environment` is a required input rather than something derived from the ref:
+# each caller is triggered by exactly one path, so it already knows which
+# environment it is. It still cannot be mis-paired - the backend config, the
+# var file and the GitHub environment below all come from this one input.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: prod or dev - selects backend.<env>.hcl and terraform.<env>.tfvars
+        type: string
+        required: true
+      working-directory:
+        description: Directory containing the Terraform root to plan
+        type: string
+        required: false
+        default: '.'
+      terraform-version:
+        type: string
+        required: false
+        default: '1.9.8'
+      needs-iac-ssh-access:
+        description: >
+          Whether this repo's Terraform sources modules via git::ssh from
+          habit-tracker-iac (requires the iac-modules-deploy-key secret)
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      aws-access-key-id:
+        required: true
+      aws-secret-access-key:
+        required: true
+      iac-modules-deploy-key:
+        required: false
+
+concurrency:
+  group: terraform-${{ github.repository }}-${{ inputs.working-directory }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
+      TF_ENV: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform setup
+        uses: NikitaLafinskiy/habit-tracker-iac/.github/actions/terraform-setup@main
+        with:
+          ssh-private-key: ${{ inputs.needs-iac-ssh-access && secrets.iac-modules-deploy-key || '' }}
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ vars.AWS_REGION }}
+          terraform-version: ${{ inputs.terraform-version }}
+
+      - name: Terraform Init
+        run: terraform init -reconfigure -backend-config="backend.${TF_ENV}.hcl"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -var-file="terraform.${TF_ENV}.tfvars" -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: ${{ inputs.working-directory }}/tfplan
+          retention-days: 5
