@@ -6,8 +6,12 @@ terraform {
     }
   }
 
-  # No `backend` block: this config creates the remote state bucket/lock
-  # table itself, so it must run on local state first (see doc/CLAUDE.md).
+  backend "s3" {
+    bucket         = "habit-tracker-statetf"
+    key            = "bootstrap/terraform.tfstate"
+    region         = "eu-central-1"
+    dynamodb_table = "habit-tracker-locktf"
+  }
 }
 
 provider "aws" {

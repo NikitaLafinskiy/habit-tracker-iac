@@ -23,7 +23,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
 }
 
 # Opt-in: only created when expiration_days is set, so the build-artifact
-# buckets keep no lifecycle configuration at all. See doc/CLAUDE.md for why a
+# buckets keep no lifecycle configuration at all. A
 # versioned bucket needs all three rules rather than just an expiration.
 resource "aws_s3_bucket_lifecycle_configuration" "this" {
   count  = var.expiration_days == null ? 0 : 1
@@ -94,7 +94,7 @@ resource "aws_s3_bucket_policy" "this" {
   policy = data.aws_iam_policy_document.allow_public_read.json
 
   # Explicit dependency: AWS rejects a public policy while the access
-  # block is still restrictive, and nothing else orders them (see doc/CLAUDE.md).
+  # block is still restrictive, and nothing else orders them.
   depends_on = [aws_s3_bucket_public_access_block.this]
 }
 

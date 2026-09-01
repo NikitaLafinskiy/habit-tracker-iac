@@ -67,7 +67,7 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
   }
 
   # Separate from the identity grant above - SendEmail with a
-  # ConfigurationSetName also needs config-set-resource authorization (see doc/CLAUDE.md).
+  # ConfigurationSetName also needs config-set-resource authorization.
   dynamic "statement" {
     for_each = length(var.ses_configuration_set_arns) > 0 ? [1] : []
     content {
@@ -127,7 +127,7 @@ data "aws_ssm_parameter" "this" {
 }
 
 # Pins the function to the current object version so Terraform actually
-# sees a diff and redeploys on every CI upload to the same key (see doc/CLAUDE.md).
+# sees a diff and redeploys on every CI upload to the same key.
 data "aws_s3_object" "package" {
   bucket = var.s3_bucket
   key    = var.s3_key

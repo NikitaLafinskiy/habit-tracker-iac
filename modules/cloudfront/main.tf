@@ -63,7 +63,7 @@ resource "aws_cloudfront_distribution" "this" {
   tags = var.tags
 
   # Falls back to the CloudFront default cert when acm_certificate_arn is
-  # unset - only pass it once var.aliases is also set (see doc/CLAUDE.md).
+  # unset - only pass it once var.aliases is also set.
   viewer_certificate {
     cloudfront_default_certificate = var.acm_certificate_arn == null
     acm_certificate_arn            = var.acm_certificate_arn

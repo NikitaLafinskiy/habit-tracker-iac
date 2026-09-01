@@ -5,7 +5,7 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_uri    = var.lambda_invoke_arn
   integration_method = "POST"
   # Must stay 1.0 - StreamLambdaHandler expects the AwsProxyRequest shape,
-  # not the differently-shaped 2.0 payload format (see doc/CLAUDE.md).
+  # not the differently-shaped 2.0 payload format.
   payload_format_version = "1.0"
 }
 
