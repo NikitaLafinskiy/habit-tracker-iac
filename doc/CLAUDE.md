@@ -220,12 +220,18 @@ The callers, per repo:
 
 | workflow | trigger | calls |
 |---|---|---|
-| `iac-dev.yaml` / `deploy-dev.yaml` | push to `dev` | `terraform-apply` (dev) |
-| `iac-prod-plan.yaml` / `terraform-prod-plan.yaml` | PR to `main` | `terraform-plan` (prod) |
+| `iac-dev.yaml` / `deploy-dev.yaml` | push to `dev`, or dispatch | `terraform-apply` (dev) |
+| `iac-prod-plan.yaml` / `terraform-prod-plan.yaml` | PR to `main`, or dispatch | `terraform-plan` (prod) |
 | `iac-prod-apply.yaml` / `terraform-prod-apply.yaml` | `workflow_dispatch` | `terraform-apply` (prod) |
 | `java-ci.yaml` (api/auth) | PR to `main` | - build and test only |
 | `prod-publish.yaml` (api/auth) | `workflow_dispatch` | - build and publish the jar |
 
+- **Every workflow is also `workflow_dispatch`-able**, so re-running a dev
+  deploy or a prod plan never needs an empty commit. Adding the trigger costs
+  nothing in skipped jobs, since the jobs stay unconditional. One caveat: a
+  dispatch runs against the ref you pick, so dispatching `deploy-dev.yaml` from
+  `main` builds main's code and deploys it to **dev**. Usually what you want;
+  lock it down with a deployment branch rule on the `dev` environment if not.
 - **`environment` is now an explicit input, not derived from the ref.** Each
   caller is triggered by exactly one path so it already knows which environment
   it is. It still cannot be mis-paired: the backend config, the var file and the
