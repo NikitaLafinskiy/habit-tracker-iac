@@ -40,8 +40,7 @@ terraform plan -var-file=terraform.dev.tfvars
   default. An apply that forgets `-var-file` therefore fails on a missing
   required variable instead of silently picking an environment.
 - **Prod names are unsuffixed, so nothing in prod is renamed.** `local.suffix`
-  is `""` for prod and `"-dev"` otherwise. Adopting this on an existing prod
-  state is a no-op apart from the new `Environment` tag.
+  is `""` for prod and `"-dev"` otherwise.
 - **Per-service roots read the shared state key that matches their own
   environment** (`data.terraform_remote_state.iac`, keyed off
   `var.environment`), and each asserts `outputs.environment` matches via a
@@ -51,6 +50,69 @@ terraform plan -var-file=terraform.dev.tfvars
   cannot read its own backend key. CI never diverges (both are derived from
   the branch, below); by hand, the plan for that mistake is wall-to-wall
   destroy/create and must not be approved.
+
+### Migrating an existing prod state onto this layout
+
+Making the prod-only modules conditional means `module.<name>` becomes
+`module.<name>[0]`, and Terraform reads a changed address as "the old one is
+gone, build a new one". Left alone, the first prod plan wanted to **destroy 12
+resources**, including the registered domain, the CloudFront distribution, the
+ACM certificate and the bucket holding the deployed SPA.
+
+This was fixed **once, by hand, with `terraform state mv`** rather than by
+committing `moved` blocks - the state is remote and shared, so a single run
+fixes it for every future plan including CI, and nothing is left in the repo
+afterwards. Recorded here because the commands are otherwise unrecoverable:
+
+```bash
+# iac, initialised against backend.prod.hcl
+terraform state mv 'module.domain'                 'module.domain[0]'
+terraform state mv 'module.client_artifacts_bucket' 'module.client_artifacts_bucket[0]'
+terraform state mv 'module.client_certificate'      'module.client_certificate[0]'
+terraform state mv 'module.cloudfront'              'module.cloudfront[0]'
+
+# auth/.infra, initialised against backend.prod.hcl
+terraform state mv 'module.ses'                          'module.ses[0]'
+terraform state mv 'module.ses_notifications_topic'       'module.ses_notifications_topic[0]'
+terraform state mv 'module.ses_notifications_subscription' 'module.ses_notifications_subscription[0]'
+```
+
+A whole-module move carries everything inside it, including nested data sources
+and already-indexed resources (`module.ses.aws_route53_record.dkim[0]` and so
+on). `api/.infra` needs nothing - no module there gained a `count`.
+
+**Only modules need this.** Terraform infers the index-0 move when `count` is
+added to a bare *resource*, which is why `aws_route53_record.cloudfront` and
+`aws_s3_bucket_policy.client_artifacts_cloudfront_access` were left alone.
+
+The state bucket has versioning enabled, so a mistake is recoverable by
+restoring the previous object version; `terraform state pull > backup.json`
+first is the cheaper habit.
+
+**No `Environment` tag, and that was not an oversight.** Tagging looked free,
+but `local.tags` reaches `module.domain`, and any change to
+`aws_route53domains_registered_domain` defers the `data.aws_route53_zone` that
+`depends_on` it. `zone_id` then becomes "known after apply", which **forces
+replacement of the apex A record and the ACM validation record** - live DNS
+churn for a tag. `local.tags` is `{}`. Adding tags later is possible but is its
+own careful change, and it must skip the route53 module.
+
+**Order matters, because the per-service guard reads an output that does not
+exist yet.** `terraform_data.environment_guard` compares
+`data.terraform_remote_state.iac.outputs.environment` against `var.environment`,
+and a prod iac state written before this split has no such output. The guard
+uses `try(...)` so that surfaces as its own precondition message
+("...says `<no environment output - apply the iac root for this environment
+first>`") rather than a bare "Unsupported attribute" crash. So:
+
+1. the `state mv` commands above
+2. `iac` prod - expect **0 to add, 0 to change, 0 to destroy**, and it publishes
+   the `environment` output the guard needs
+3. `auth/.infra` prod, then `api/.infra` prod - each **2 to change**: the Lambda
+   and its alias picking up `SPRING_PROFILES_ACTIVE=prod`, plus the guard
+   resource itself. That env var is required, not cosmetic - without it the
+   deployed function loads no `application-<env>.yml` and fails to start on an
+   unresolvable placeholder.
 
 ### What dev does not get
 
@@ -136,30 +198,62 @@ The per-service roots read the shared root's outputs, so it goes first:
 
 ### CI
 
-The environment is **derived from the ref, never passed in**: `refs/heads/dev`
-is dev, everything else is prod. That one expression picks the backend config,
-the var file and the GitHub environment the `vars.*` come from, so the three
-cannot be paired wrongly.
+**One workflow per path, and no job anywhere carries an `if:`.** A job either
+runs or renders as "skipped", so a single workflow serving both environments
+necessarily shows prod jobs greyed out on a dev run and vice versa. The split is
+what removes that: each workflow is triggered by exactly one thing, and every
+job in it runs unconditionally.
 
-- **Prod is unchanged.** Plan on a PR to `main`, apply only on a manual
-  `workflow_dispatch` on `main` - still the approval gate, since this repo's
-  plan has no required-reviewer environment protection.
-- **Dev applies on a push to `dev`,** with no gate. That is the point of a
-  throwaway environment.
-- **A dev push deploys through the service's `java.yaml`, not
-  `terraform.yaml`.** The Lambda tracks its artifact's S3 object version
+Two reusable workflows here hold the actual Terraform steps, both
+`workflow_call`-only:
+
+| | |
+|---|---|
+| `terraform-plan.yaml` | init, fmt, validate, plan, upload |
+| `terraform-apply.yaml` | the same, then apply, in one job |
+
+They are separate files rather than one workflow with a conditional apply job,
+for the same no-skipped-jobs reason. Neither has an approval gate - callers own
+that.
+
+The callers, per repo:
+
+| workflow | trigger | calls |
+|---|---|---|
+| `iac-dev.yaml` / `deploy-dev.yaml` | push to `dev` | `terraform-apply` (dev) |
+| `iac-prod-plan.yaml` / `terraform-prod-plan.yaml` | PR to `main` | `terraform-plan` (prod) |
+| `iac-prod-apply.yaml` / `terraform-prod-apply.yaml` | `workflow_dispatch` | `terraform-apply` (prod) |
+| `java-ci.yaml` (api/auth) | PR to `main` | - build and test only |
+| `prod-publish.yaml` (api/auth) | `workflow_dispatch` | - build and publish the jar |
+
+- **`environment` is now an explicit input, not derived from the ref.** Each
+  caller is triggered by exactly one path so it already knows which environment
+  it is. It still cannot be mis-paired: the backend config, the var file and the
+  GitHub environment all come from that one input inside the reusable workflow.
+- **`workflow_dispatch`-only is still the prod approval gate**, since this repo
+  is private on a plan without required-reviewer environment protection. What
+  changed is where "must be main" lives: it used to be `github.ref ==
+  'refs/heads/main'` in a job `if:`, which is exactly the thing that rendered as
+  a skipped job elsewhere. **Set a deployment branch rule limiting the `prod`
+  GitHub environment to `main` instead** - a job with `environment: prod` on any
+  other ref then fails outright rather than skipping. Without that rule, a prod
+  dispatch from any branch will publish and apply.
+- **A dev push deploys through `deploy-dev.yaml`, which chains build → publish →
+  terraform-apply.** The Lambda tracks its artifact's S3 object version
   (`modules/lambda/data.tf`), so publishing a jar does not reach the function
-  until Terraform applies. `java.yaml` therefore chains build → publish →
-  `deploy-dev`, which calls this repo's reusable
-  `terraform-plan-apply.yaml`. `terraform.yaml` keeps its prod-only triggers
-  rather than racing that chain for the state lock; dispatching it from `dev`
-  is the escape hatch for an infra-only dev apply.
-- **`vars.LAMBDA_ARTIFACT_S3_BUCKET` and friends are GitHub *environment*
-  variables**, not repo variables, so each repo needs `dev` and `prod`
-  environments defined with `AWS_REGION`, `TF_STATE_S3_BUCKET`,
-  `LAMBDA_ARTIFACT_S3_BUCKET` and `LAMBDA_ARTIFACT_S3_KEY`. Dev's artifact
-  bucket is `habit-tracker-lambda-artifacts-dev`; the key within it is the
-  same as prod's.
+  until Terraform applies. That workflow has no path filter, so an `.infra`-only
+  change on dev comes through it too, and the prod terraform workflows keep
+  their own triggers rather than racing it for the state lock.
+- **Prod deploy is two dispatches, unchanged:** `prod-publish.yaml` then
+  `terraform-prod-apply.yaml`.
+- **`vars.LAMBDA_ARTIFACT_S3_BUCKET` is the only value that differs per
+  environment**, so it is the only GitHub *environment* variable. `AWS_REGION`,
+  `TF_STATE_S3_BUCKET` and `LAMBDA_ARTIFACT_S3_KEY` stay repo-level and are
+  inherited; environment variables override repo ones of the same name. Dev's
+  artifact bucket is `habit-tracker-lambda-artifacts-dev`; the key within it is
+  the same as prod's. The `dev` and `prod` environments must exist in **api,
+  auth and iac** - a reusable workflow resolves `environment:` and `vars`
+  against the *caller's* repo.
 - **`concurrency` is grouped per repo + root + environment** with
   `cancel-in-progress: false`. Two pushes to `dev` in quick succession would
   otherwise race for the DynamoDB state lock and one would fail outright

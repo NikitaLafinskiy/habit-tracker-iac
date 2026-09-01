@@ -2,7 +2,7 @@ locals {
   suffix  = var.environment == "prod" ? "" : "-${var.environment}"
   is_prod = var.environment == "prod"
   name    = "habit-tracker-api${local.suffix}"
-  tags    = { Environment = var.environment }
+  tags    = {}
 }
 
 module "api_gateway" {
