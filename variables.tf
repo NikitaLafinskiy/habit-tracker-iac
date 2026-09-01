@@ -7,8 +7,8 @@ variable "environment" {
   type        = string
   description = <<EOF
 Deployment environment. Drives the resource name suffix ("" for prod, "-dev"
-for dev) and must match the backend.<env>.hcl this root was initialised with -
-see doc/CLAUDE.md "Environments". Has no default on purpose: a var file is
+for dev) and must match the backend.<env>.hcl this root was initialised with.
+Has no default on purpose: a var file is
 mandatory, so an apply that forgets -var-file fails instead of silently
 picking one.
 EOF

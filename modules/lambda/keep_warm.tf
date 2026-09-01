@@ -1,7 +1,6 @@
 # Optional EventBridge-driven warmup. Cheap alternative to provisioned
 # concurrency: a scheduled rule invokes the function on an interval so an
-# execution environment stays live instead of cold-starting. See doc/CLAUDE.md
-# "modules/lambda (keep_warm)" for why this targets the alias and relies on the
+# execution environment stays live instead of cold-starting. This targets the alias and relies on the
 # standard scheduled-event shape rather than a custom input.
 resource "aws_cloudwatch_event_rule" "keep_warm" {
   count = var.keep_warm ? 1 : 0
@@ -26,7 +25,7 @@ resource "aws_cloudwatch_event_target" "keep_warm" {
   # No input override: EventBridge delivers its standard scheduled-event payload
   # (source "aws.events", detail-type "Scheduled Event"), which the services'
   # KeepWarmEventStrategy already recognises. This is the only scheduled rule on
-  # the function, so that shape unambiguously means "warmup". See doc/CLAUDE.md.
+  # the function, so that shape unambiguously means "warmup".
 }
 
 # Permission is scoped to the alias (qualifier), matching the target above.

@@ -97,7 +97,7 @@ variable "environment_variables" {
 
 variable "keep_warm" {
   type        = bool
-  description = "When true, an EventBridge rule invokes the function's alias on an interval to keep an execution environment warm - a cheap stand-in for provisioned concurrency. See doc/CLAUDE.md."
+  description = "When true, an EventBridge rule invokes the function's alias on an interval to keep an execution environment warm - a cheap stand-in for provisioned concurrency."
   default     = false
 }
 
