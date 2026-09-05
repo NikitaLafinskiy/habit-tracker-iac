@@ -49,6 +49,12 @@ variable "dynamodb_table_arns" {
   default     = []
 }
 
+variable "dsql_cluster_arns" {
+  type        = list(string)
+  description = "ARNs of Aurora DSQL clusters the Lambda execution role may connect to"
+  default     = []
+}
+
 variable "ses_identity_arns" {
   type        = list(string)
   description = "ARNs of SES identities the Lambda execution role may send email from"
