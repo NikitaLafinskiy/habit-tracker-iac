@@ -1,0 +1,97 @@
+name: Flyway migrate (Aurora DSQL)
+description: >
+  Runs a Flyway migration against an Aurora DSQL cluster from the official
+  flyway/flyway image, with the forked flyway-database-dsql bundle jar mounted
+  onto the driver path.
+
+  Stock Flyway cannot migrate DSQL at any version: with a jdbc:aws-dsql: URL
+  there is no database plugin for the scheme, and with a plain jdbc:postgresql:
+  URL its PostgreSQL plugin issues SET ROLE during connection teardown, which
+  DSQL rejects with 0A000. The bundle supplies the DSQL DatabaseType, the JDBC
+  connector and the AWS SDK closure in one jar.
+
+  The bundle is built against the image's flyway-core, so flyway-version and
+  bundle-version must move together. user=admin is deliberate - CI is the
+  DbConnectAdmin principal, and the service role holds DML rights only.
+
+  Callers must configure AWS credentials before this step and should set a
+  workflow-level concurrency group: the DSQL plugin bypasses Flyway's advisory
+  lock (DSQL has no locks), so concurrent runs are not serialized.
+
+inputs:
+  cluster-endpoint:
+    description: Bare DSQL cluster host, no scheme and no port.
+    required: true
+  sql-directory:
+    description: Directory holding the per-vendor migration locations.
+    required: false
+    default: src/main/resources/db/migration
+  locations:
+    description: Comma-separated Flyway locations, relative to sql-directory.
+    required: false
+    default: common,dsql
+  flyway-version:
+    description: Tag of the flyway/flyway image. Moves with bundle-version.
+    required: false
+    default: '10.22.0'
+  bundle-version:
+    description: Version of the flyway-database-dsql bundle jar on GitHub Packages.
+    required: false
+    default: 10.22.0.1
+  bundle-sha256:
+    description: Expected SHA-256 of the bundle jar. Empty skips verification.
+    required: false
+    default: ''
+  packages-token:
+    description: Token with read:packages on the fork repository.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch the DSQL driver bundle
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.packages-token }}
+        BUNDLE_VERSION: ${{ inputs.bundle-version }}
+        BUNDLE_SHA256: ${{ inputs.bundle-sha256 }}
+      run: |
+        set -euo pipefail
+        mkdir -p flyway/drivers
+        jar="flyway/drivers/flyway-database-dsql-${BUNDLE_VERSION}-bundle.jar"
+        curl -fL --retry 5 --retry-all-errors --retry-delay 5 \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -o "$jar" \
+          "https://maven.pkg.github.com/NikitaLafinskiy/habit-tracker-flyway-dsql/io/github/nikitalafinskiy/flyway-database-dsql/${BUNDLE_VERSION}/flyway-database-dsql-${BUNDLE_VERSION}-bundle.jar"
+        if [ -n "$BUNDLE_SHA256" ]; then
+          echo "${BUNDLE_SHA256}  ${jar}" | sha256sum -c -
+        else
+          echo "::warning::bundle-sha256 not set; publishing an unverified driver jar onto the migration path."
+          sha256sum "$jar"
+        fi
+
+    - name: Run Flyway migrations
+      shell: bash
+      env:
+        CLUSTER_ENDPOINT: ${{ inputs.cluster-endpoint }}
+        SQL_DIRECTORY: ${{ inputs.sql-directory }}
+        LOCATIONS: ${{ inputs.locations }}
+        FLYWAY_VERSION: ${{ inputs.flyway-version }}
+        BUNDLE_VERSION: ${{ inputs.bundle-version }}
+      run: |
+        set -euo pipefail
+        jar="flyway-database-dsql-${BUNDLE_VERSION}-bundle.jar"
+        locations=$(echo "$LOCATIONS" | sed 's#[^,]*#filesystem:/flyway/sql/&#g')
+        docker run --rm \
+          -v "$PWD/${SQL_DIRECTORY}:/flyway/sql:ro" \
+          -v "$PWD/flyway/drivers/${jar}:/flyway/drivers/${jar}:ro" \
+          -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_REGION \
+          "flyway/flyway:${FLYWAY_VERSION}" \
+          -url="jdbc:aws-dsql:postgresql://${CLUSTER_ENDPOINT}:5432/postgres" \
+          -user=admin \
+          -driver=software.amazon.dsql.jdbc.DSQLConnector \
+          -locations="$locations" \
+          -connectRetries=5 \
+          -dsql.occMaxRetries=3 \
+          -dsql.awaitAsyncIndexes=true \
+          migrate
