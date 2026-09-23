@@ -48,6 +48,8 @@ resource "aws_lambda_function" "this" {
   }
 
   tags = var.tags
+
+  depends_on = [aws_iam_role_policy_attachment.this]
 }
 
 # Callers (API Gateway) target this alias rather than $LATEST so that every
