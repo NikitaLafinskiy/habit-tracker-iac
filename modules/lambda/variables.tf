@@ -89,9 +89,9 @@ variable "sqs_queue_arns" {
   default     = []
 }
 
-variable "ssm_parameters" {
+variable "ssm_parameter_paths" {
   type        = map(string)
-  description = "Map of Lambda environment variable name => SSM parameter name to resolve at plan/apply time and inject as that environment variable"
+  description = "Map of Spring property name (e.g. \"jwt.access-secret\") => SSM parameter path. Passed through as a single opaque SSM_BACKED_PROPERTIES environment variable (never resolved by Terraform), and the execution role is granted ssm:GetParameter/kms:Decrypt on the derived ARNs, so the application resolves each secret from Parameter Store at runtime rather than Terraform baking the plaintext into the function config or state."
   default     = {}
 }
 
