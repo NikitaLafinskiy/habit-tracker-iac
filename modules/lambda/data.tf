@@ -1,3 +1,18 @@
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+data "aws_kms_key" "ssm" {
+  count  = length(var.ssm_parameter_paths) > 0 ? 1 : 0
+  key_id = "alias/aws/ssm"
+}
+
+locals {
+  ssm_parameter_arns = {
+    for key, path in var.ssm_parameter_paths :
+    key => "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${path}"
+  }
+}
+
 data "aws_iam_policy_document" "lambda_assume_role_policy" {
   statement {
     effect = "Allow"
@@ -133,13 +148,32 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
       resources = var.sqs_queue_arns
     }
   }
-}
 
-data "aws_ssm_parameter" "this" {
-  for_each = var.ssm_parameters
+  dynamic "statement" {
+    for_each = length(local.ssm_parameter_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
 
-  name            = each.value
-  with_decryption = true
+      actions = [
+        "ssm:GetParameter",
+      ]
+
+      resources = values(local.ssm_parameter_arns)
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(local.ssm_parameter_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "kms:Decrypt",
+      ]
+
+      resources = [data.aws_kms_key.ssm[0].arn]
+    }
+  }
 }
 
 # Pins the function to the current object version so Terraform actually

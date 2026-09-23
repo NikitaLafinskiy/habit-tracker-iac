@@ -41,7 +41,9 @@ resource "aws_lambda_function" "this" {
   environment {
     variables = merge(
       var.environment_variables,
-      { for env_var_name, param in data.aws_ssm_parameter.this : env_var_name => param.value },
+      length(var.ssm_parameter_paths) > 0 ? {
+        SSM_BACKED_PROPERTIES = join("\n", [for property_name, path in var.ssm_parameter_paths : "${property_name}=${path}"])
+      } : {},
     )
   }
 
