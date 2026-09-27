@@ -15,14 +15,60 @@ variable "handler" {
   default     = "com.auth.authservice.lambda.StreamLambdaHandler::handleRequest"
 }
 
+variable "package_type" {
+  type        = string
+  description = "Zip (a JVM deployment package in S3) or Image (a native executable in an ECR container image)"
+  default     = "Zip"
+
+  validation {
+    condition     = contains(["Zip", "Image"], var.package_type)
+    error_message = "package_type must be Zip or Image."
+  }
+}
+
 variable "s3_bucket" {
   type        = string
-  description = "S3 bucket holding the built Lambda deployment package (shadow jar)"
+  description = "S3 bucket holding the built Lambda deployment package (shadow jar). Zip only"
+  default     = null
+
+  validation {
+    condition     = var.package_type != "Zip" || var.s3_bucket != null
+    error_message = "A Zip function needs s3_bucket."
+  }
 }
 
 variable "s3_key" {
   type        = string
-  description = "S3 key of the built Lambda deployment package (shadow jar)"
+  description = "S3 key of the built Lambda deployment package (shadow jar). Zip only"
+  default     = null
+
+  validation {
+    condition     = var.package_type != "Zip" || var.s3_key != null
+    error_message = "A Zip function needs s3_key."
+  }
+}
+
+variable "ecr_repository_name" {
+  type        = string
+  description = "ECR repository holding the function's container image. Image only"
+  default     = null
+
+  validation {
+    condition     = var.package_type != "Image" || var.ecr_repository_name != null
+    error_message = "An Image function needs ecr_repository_name."
+  }
+}
+
+variable "image_tag" {
+  type        = string
+  description = "Mutable tag CI pushes on every build; the function pins the digest it resolves to, so each push is a Terraform diff. Image only"
+  default     = "current"
+}
+
+variable "snap_start" {
+  type        = bool
+  description = "Enable SnapStart on published versions. Zip only: SnapStart on a custom image is a fixed per-version charge"
+  default     = true
 }
 
 variable "alias_name" {
