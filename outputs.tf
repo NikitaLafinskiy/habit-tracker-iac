@@ -28,6 +28,16 @@ output "lambda_artifacts_bucket" {
   value       = module.lambda_artifacts_bucket.name
 }
 
+output "lambda_image_repositories" {
+  description = "Service name (api, auth, ai-insight) => ECR repository holding that Lambda's native container image. CI pushes the fixed `current` tag; each service's lambda module pins the digest it resolves to."
+  value       = { for service, repository in module.lambda_image_repositories : service => repository.name }
+}
+
+output "lambda_image_repository_urls" {
+  description = "Service name => ECR repository URL, for CI's docker push"
+  value       = { for service, repository in module.lambda_image_repositories : service => repository.repository_url }
+}
+
 output "domain_zone_id" {
   description = "Route53 hosted zone ID for the app's registered domain. Null outside prod - the domain is registered once and dev has no DNS of its own."
   value       = one(module.domain[*].zone_id)

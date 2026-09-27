@@ -1,0 +1,71 @@
+name: Native image build
+description: >
+  Compiles a service to a GraalVM native executable named bootstrap, checks it
+  can run on the Lambda provided.al2023 base image, builds the container image
+  and runs the repo's smoke script against it under the base image's Runtime
+  Interface Emulator.
+
+  Run after the java-ci action in the same job: javac keeps its JDK 24
+  toolchain (Error Prone), which java-ci's setup-java installs, while
+  native-image comes from the Oracle GraalVM for JDK 21 installed here
+  (GRAALVM_HOME, toolchainDetection = false in the service's build).
+
+  The binary links against the build machine's glibc. Lambda's provided.al2023
+  ships glibc 2.34, so the build fails if the binary needs a newer symbol.
+
+  Needs no AWS credentials: the smoke script stubs every AWS and third-party
+  endpoint. The workflow uploads build/native/nativeCompile/bootstrap for the
+  publish job, which builds and pushes the image after migrations.
+
+inputs:
+  graalvm-java-version:
+    description: JDK version of the Oracle GraalVM distribution.
+    required: false
+    default: '21'
+  smoke-script:
+    description: Script run as `<script> <image>` after the image build; empty skips it.
+    required: false
+    default: smoke/run.sh
+  max-glibc:
+    description: Newest glibc symbol version the binary may require (AL2023 ships 2.34).
+    required: false
+    default: '2.34'
+  github-token:
+    description: Token setup-graalvm uses for GitHub API rate limits.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Oracle GraalVM
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: ${{ inputs.graalvm-java-version }}
+        distribution: graalvm
+        github-token: ${{ inputs.github-token }}
+        set-java-home: false
+
+    - name: Native compile
+      shell: bash
+      run: ./gradlew nativeCompile --no-daemon
+
+    - name: Check glibc compatibility with provided.al2023
+      shell: bash
+      env:
+        MAX_GLIBC: ${{ inputs.max-glibc }}
+      run: |
+        needed="$(objdump -T build/native/nativeCompile/bootstrap | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -Vu | tail -1)"
+        echo "bootstrap needs glibc ${needed}; provided.al2023 has ${MAX_GLIBC}"
+        if [ "$(printf '%s\n%s\n' "$needed" "$MAX_GLIBC" | sort -V | tail -1)" != "$MAX_GLIBC" ]; then
+          echo "::error::bootstrap needs glibc ${needed}, newer than provided.al2023's ${MAX_GLIBC}"
+          exit 1
+        fi
+
+    - name: Build smoke image
+      shell: bash
+      run: docker build -t native-image-smoke:${{ github.sha }} .
+
+    - name: Smoke test under the Runtime Interface Emulator
+      if: ${{ inputs.smoke-script != '' }}
+      shell: bash
+      run: ./${{ inputs.smoke-script }} native-image-smoke:${{ github.sha }}

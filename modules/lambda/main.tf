@@ -19,13 +19,14 @@ resource "aws_lambda_function" "this" {
   function_name = var.name
   role          = aws_iam_role.this.arn
 
-  package_type = "Zip"
-  runtime      = var.runtime
-  handler      = var.handler
+  package_type = var.package_type
+  runtime      = local.is_zip ? var.runtime : null
+  handler      = local.is_zip ? var.handler : null
 
-  s3_bucket         = var.s3_bucket
-  s3_key            = var.s3_key
-  s3_object_version = data.aws_s3_object.package.version_id
+  s3_bucket         = local.is_zip ? var.s3_bucket : null
+  s3_key            = local.is_zip ? var.s3_key : null
+  s3_object_version = local.is_zip ? data.aws_s3_object.package[0].version_id : null
+  image_uri         = local.is_zip ? null : "${data.aws_ecr_repository.image[0].repository_url}@${data.aws_ecr_image.image[0].image_digest}"
 
   memory_size = var.memory_size
   timeout     = var.timeout
@@ -34,8 +35,11 @@ resource "aws_lambda_function" "this" {
   # deploy must publish a new version for the snapshot to be (re)created.
   publish = true
 
-  snap_start {
-    apply_on = "PublishedVersions"
+  dynamic "snap_start" {
+    for_each = local.is_zip && var.snap_start ? [1] : []
+    content {
+      apply_on = "PublishedVersions"
+    }
   }
 
   environment {
