@@ -38,6 +38,14 @@ module "lambda_artifacts_bucket" {
   tags               = local.tags
 }
 
+module "lambda_image_repositories" {
+  source   = "./modules/ecr"
+  for_each = toset(["api", "auth"])
+
+  name = "${each.key}${local.suffix}"
+  tags = local.tags
+}
+
 # Bucket for the client-side artifacts (e.g. React build), served via
 # CloudFront. Not public - OAC below is the only intended read path.
 module "client_artifacts_bucket" {

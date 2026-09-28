@@ -24,13 +24,6 @@ on:
         type: boolean
         required: false
         default: false
-      targets:
-        description: >
-          Space-separated resource addresses to limit the plan and apply to
-          (each becomes a -target). Empty applies the whole root.
-        type: string
-        required: false
-        default: ''
     secrets:
       aws-access-key-id:
         required: true
@@ -53,7 +46,6 @@ jobs:
     env:
       TF_VAR_tf_state_s3_bucket: ${{ vars.TF_STATE_S3_BUCKET }}
       TF_ENV: ${{ inputs.environment }}
-      TF_TARGETS: ${{ inputs.targets }}
 
     steps:
       - name: Checkout code
@@ -78,17 +70,12 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: |
-          target_args=()
-          for target in $TF_TARGETS; do
-            target_args+=("-target=$target")
-          done
-          terraform plan -input=false -var-file="terraform.${TF_ENV}.tfvars" "${target_args[@]}" -out=tfplan
+        run: terraform plan -input=false -var-file="terraform.${TF_ENV}.tfvars" -out=tfplan
 
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ inputs.environment }}${{ inputs.targets != '' && '-targeted' || '' }}
+          name: tfplan-${{ inputs.environment }}
           path: ${{ inputs.working-directory }}/tfplan
           retention-days: 5
 
