@@ -29,7 +29,7 @@ output "lambda_artifacts_bucket" {
 }
 
 output "lambda_image_repositories" {
-  description = "Service name (api, auth) => ECR repository holding that service's Lambda container image"
+  description = "Service name (api, auth, ai-insight) => ECR repository holding that service's Lambda container image"
   value       = { for service, repository in module.lambda_image_repositories : service => repository.name }
 }
 
