@@ -67,7 +67,7 @@ variable "image_tag" {
 
 variable "snap_start" {
   type        = bool
-  description = "Enable SnapStart on published versions. Zip only: SnapStart on a custom image is a fixed per-version charge"
+  description = "Enable SnapStart on published versions"
   default     = true
 }
 
