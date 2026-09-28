@@ -1,8 +1,6 @@
 name: Prod plan
 run-name: ${{ github.ref_name }}-${{ github.actor }}
 
-# Review path for prod. Plan only - applying is a separate, manually
-# dispatched workflow (iac-prod-apply.yaml).
 on:
   pull_request:
     branches: [main]

@@ -1,13 +1,6 @@
 name: Terraform apply
 run-name: ${{ github.ref_name }}-${{ github.actor }}
 
-# Plan and apply in one job. Separate from terraform-plan.yaml rather than one
-# workflow with a conditional apply job: a conditional would show up as a
-# skipped job on every plan-only run, and the two paths are triggered by
-# different things anyway.
-#
-# There is no approval gate in here. Callers own that: dev calls this on a push,
-# prod calls it only from a workflow_dispatch.
 on:
   workflow_call:
     inputs:
@@ -92,8 +85,6 @@ jobs:
           done
           terraform plan -input=false -var-file="terraform.${TF_ENV}.tfvars" "${target_args[@]}" -out=tfplan
 
-      # Kept for auditing what the apply below actually did - the apply consumes
-      # the file directly, it is not fetched back.
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:

@@ -1,25 +1,28 @@
 name: Lambda image publish
 description: >
-  Builds the service's container image from a native bootstrap binary produced
-  earlier in the run (native-image-build, handed over as an artifact) and
-  pushes it to ECR as :current and :<commit sha>.
+  Unpacks the service's Lambda deployment zip into build/lambda-package, builds
+  the container image from the repo's Dockerfile (JVM on the AWS Java base
+  image, SnapStart-capable) and pushes it to ECR as :current and :<commit sha>.
 
   The function never reads :current directly: the lambda module resolves the
   tag to a digest and pins image_uri to it, so every push here is a Terraform
   diff, exactly as the S3 object version was for the zip.
 
-  Callers must check out the repo (for the Dockerfile), download the bootstrap
-  artifact into build/native/nativeCompile, and configure AWS credentials
-  before this step.
+  Callers must check out the repo (for the Dockerfile), download the zip into
+  build/distributions, and configure AWS credentials before this step.
 
 inputs:
   repository:
-    description: ECR repository name, e.g. habit-tracker-api-dev.
+    description: ECR repository name, e.g. api-dev.
     required: true
 
 runs:
   using: composite
   steps:
+    - name: Unpack Lambda deployment package
+      shell: bash
+      run: unzip -q build/distributions/*-aws.zip -d build/lambda-package
+
     - name: Log in to ECR
       id: ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -29,7 +32,6 @@ runs:
       env:
         IMAGE: ${{ steps.ecr.outputs.registry }}/${{ inputs.repository }}
       run: |
-        chmod +x build/native/nativeCompile/bootstrap
         docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:current" .
         docker push "$IMAGE:${{ github.sha }}"
         docker push "$IMAGE:current"
