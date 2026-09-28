@@ -36,7 +36,7 @@ resource "aws_lambda_function" "this" {
   publish = true
 
   dynamic "snap_start" {
-    for_each = local.is_zip && var.snap_start ? [1] : []
+    for_each = (local.is_zip ? var.snap_start : var.image_snap_start) ? [1] : []
     content {
       apply_on = "PublishedVersions"
     }
