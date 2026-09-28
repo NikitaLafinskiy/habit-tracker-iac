@@ -67,14 +67,8 @@ variable "image_tag" {
 
 variable "snap_start" {
   type        = bool
-  description = "Enable SnapStart on published versions. Zip only: SnapStart on a custom image is a fixed per-version charge"
+  description = "Enable SnapStart on published versions"
   default     = true
-}
-
-variable "image_snap_start" {
-  type        = bool
-  description = "Enable SnapStart on published versions of an Image function. Only for images built on an AWS Java base image, where SnapStart is billed as it is for a zip; a custom image pays a fixed per-version cache charge"
-  default     = false
 }
 
 variable "alias_name" {
