@@ -7,8 +7,6 @@ data "aws_kms_key" "ssm" {
 }
 
 locals {
-  is_zip = var.package_type == "Zip"
-
   ssm_parameter_arns = {
     for key, path in var.ssm_parameter_paths :
     key => "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${path}"
@@ -181,18 +179,6 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
 # Pins the function to the current object version so Terraform actually
 # sees a diff and redeploys on every CI upload to the same key.
 data "aws_s3_object" "package" {
-  count  = local.is_zip ? 1 : 0
   bucket = var.s3_bucket
   key    = var.s3_key
-}
-
-data "aws_ecr_repository" "image" {
-  count = local.is_zip ? 0 : 1
-  name  = var.ecr_repository_name
-}
-
-data "aws_ecr_image" "image" {
-  count           = local.is_zip ? 0 : 1
-  repository_name = var.ecr_repository_name
-  image_tag       = var.image_tag
 }
