@@ -3,14 +3,6 @@ locals {
   is_prod = var.environment == "prod"
   name    = "habit-tracker-api${local.suffix}"
   tags    = {}
-
-  lambda_image_repositories = {
-    for service in ["api", "auth", "ai-insight"] : service => "${service}${local.suffix}"
-  }
-  existing_lambda_image_repositories = {
-    for service, repository in local.lambda_image_repositories : service => repository
-    if contains(data.aws_ecr_repositories.existing.names, repository)
-  }
 }
 
 module "api_gateway" {
@@ -46,12 +38,12 @@ module "lambda_artifacts_bucket" {
   tags               = local.tags
 }
 
-module "lambda_image_repositories" {
-  source   = "./modules/ecr"
-  for_each = local.lambda_image_repositories
+removed {
+  from = module.lambda_image_repositories
 
-  name = each.value
-  tags = local.tags
+  lifecycle {
+    destroy = false
+  }
 }
 
 # Bucket for the client-side artifacts (e.g. React build), served via
