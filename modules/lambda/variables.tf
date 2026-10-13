@@ -55,6 +55,12 @@ variable "dsql_cluster_arns" {
   default     = []
 }
 
+variable "bedrock_model_arns" {
+  type        = list(string)
+  description = "ARNs of Bedrock models the Lambda execution role may access"
+  default     = []
+}
+
 variable "ses_identity_arns" {
   type        = list(string)
   description = "ARNs of SES identities the Lambda execution role may send email from"
