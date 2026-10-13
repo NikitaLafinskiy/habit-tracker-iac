@@ -22,6 +22,12 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
+locals {
+  rule_suffix = {
+    for prefix in var.expiration_prefixes : prefix => prefix == "" ? "" : "-${trimsuffix(replace(prefix, "/", "-"), "-")}"
+  }
+}
+
 # Opt-in: only created when expiration_days is set, so the build-artifact
 # buckets keep no lifecycle configuration at all. A
 # versioned bucket needs all three rules rather than just an expiration.
@@ -33,48 +39,56 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
   # nothing else orders the two resources.
   depends_on = [aws_s3_bucket_versioning.this]
 
-  rule {
-    id     = "expire-objects"
-    status = "Enabled"
+  dynamic "rule" {
+    for_each = toset(var.expiration_prefixes)
 
-    # An empty prefix means the whole bucket. The filter block itself is
-    # required by the provider; omitting it is a deprecation warning.
-    filter {
-      prefix = var.expiration_prefix
-    }
+    content {
+      id     = "expire-objects${local.rule_suffix[rule.value]}"
+      status = "Enabled"
 
-    expiration {
-      days = var.expiration_days
-    }
+      # An empty prefix means the whole bucket. The filter block itself is
+      # required by the provider; omitting it is a deprecation warning.
+      filter {
+        prefix = rule.value
+      }
 
-    # Load-bearing on a versioned bucket. `expiration` above only writes a
-    # delete marker there - the object's bytes survive as a noncurrent version
-    # indefinitely, so without this the rule hides data instead of deleting it
-    # and keeps billing for it.
-    noncurrent_version_expiration {
-      noncurrent_days = var.noncurrent_version_expiration_days
-    }
+      expiration {
+        days = var.expiration_days
+      }
 
-    # A failed multipart upload otherwise leaves parts that never show up in
-    # the console and never expire on their own.
-    abort_incomplete_multipart_upload {
-      days_after_initiation = var.abort_incomplete_multipart_upload_days
+      # Load-bearing on a versioned bucket. `expiration` above only writes a
+      # delete marker there - the object's bytes survive as a noncurrent version
+      # indefinitely, so without this the rule hides data instead of deleting it
+      # and keeps billing for it.
+      noncurrent_version_expiration {
+        noncurrent_days = var.noncurrent_version_expiration_days
+      }
+
+      # A failed multipart upload otherwise leaves parts that never show up in
+      # the console and never expire on their own.
+      abort_incomplete_multipart_upload {
+        days_after_initiation = var.abort_incomplete_multipart_upload_days
+      }
     }
   }
 
   # A separate rule because S3 rejects `days` and `expired_object_delete_marker`
   # in the same expiration block. Sweeps up the markers the rule above leaves
   # behind once every version beneath them is gone.
-  rule {
-    id     = "expire-delete-markers"
-    status = "Enabled"
+  dynamic "rule" {
+    for_each = toset(var.expiration_prefixes)
 
-    filter {
-      prefix = var.expiration_prefix
-    }
+    content {
+      id     = "expire-delete-markers${local.rule_suffix[rule.value]}"
+      status = "Enabled"
 
-    expiration {
-      expired_object_delete_marker = true
+      filter {
+        prefix = rule.value
+      }
+
+      expiration {
+        expired_object_delete_marker = true
+      }
     }
   }
 }

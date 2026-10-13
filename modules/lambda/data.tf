@@ -67,6 +67,19 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
     }
   }
 
+  dynamic "statement" {
+    for_each = length(var.bedrock_model_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "bedrock:InvokeModel",
+      ]
+
+      resources = var.bedrock_model_arns
+    }
+  }
+
   # Connect-only. The DSQL connector mints an IAM auth token per connection
   # from the execution role's credentials; dsql:DbConnectAdmin (DDL, role
   # bootstrap) stays with the CI migration principal, never this function.

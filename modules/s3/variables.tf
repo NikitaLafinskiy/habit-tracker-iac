@@ -45,10 +45,15 @@ variable "expiration_days" {
   default     = null
 }
 
-variable "expiration_prefix" {
-  type        = string
-  description = "Key prefix the expiry applies to. Empty (the default) means the whole bucket; set it when the bucket also holds objects that must not age out."
-  default     = ""
+variable "expiration_prefixes" {
+  type        = list(string)
+  description = "Key prefixes the expiry applies to, one pair of lifecycle rules each. [\"\"] (the default) means the whole bucket; list prefixes when the bucket also holds objects that must not age out."
+  default     = [""]
+
+  validation {
+    condition     = length(var.expiration_prefixes) > 0
+    error_message = "expiration_prefixes needs at least one prefix; use [\"\"] for the whole bucket."
+  }
 }
 
 variable "noncurrent_version_expiration_days" {
