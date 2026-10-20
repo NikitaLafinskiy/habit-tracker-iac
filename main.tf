@@ -97,8 +97,9 @@ module "cloudfront" {
   enable_origin_access_control = true
   origin_access_control_type   = "s3"
 
-  aliases             = [var.domain_name]
-  acm_certificate_arn = module.client_certificate[0].certificate_arn
+  aliases                = [var.domain_name]
+  acm_certificate_arn    = module.client_certificate[0].certificate_arn
+  viewer_protocol_policy = "redirect-to-https"
 
   # Client-side routes (e.g. /metrics/create) have no matching S3 key, so
   # OAC-fetched requests for them come back 403/404 from the origin -
