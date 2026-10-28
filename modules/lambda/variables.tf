@@ -61,6 +61,12 @@ variable "bedrock_model_arns" {
   default     = []
 }
 
+variable "execute_api_arns" {
+  type        = list(string)
+  description = "API Gateway execute-api ARNs (arn:aws:execute-api:<region>:<account>:<api-id>/<stage>/<METHOD>/<path>) this function may call with SigV4 on AWS_IAM routes"
+  default     = []
+}
+
 variable "ses_identity_arns" {
   type        = list(string)
   description = "ARNs of SES identities the Lambda execution role may send email from"

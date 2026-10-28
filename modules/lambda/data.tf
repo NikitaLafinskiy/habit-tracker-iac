@@ -79,6 +79,19 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
   }
 
   dynamic "statement" {
+    for_each = length(var.execute_api_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "execute-api:Invoke",
+      ]
+
+      resources = var.execute_api_arns
+    }
+  }
+
+  dynamic "statement" {
     for_each = length(var.bedrock_model_arns) > 0 ? [1] : []
     content {
       effect = "Allow"

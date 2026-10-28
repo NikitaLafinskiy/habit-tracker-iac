@@ -64,11 +64,12 @@ module "client_artifacts_bucket" {
 module "files_artifacts_bucket" {
   source = "./modules/s3"
 
-  name                = "habit-tracker-files-artifacts${local.suffix}"
-  versioning_enabled  = true
-  expiration_days     = 4
-  expiration_prefixes = ["csv-metrics/", "csv-notes/", "ai-insight-requests/"]
-  tags                = local.tags
+  name                    = "habit-tracker-files-artifacts${local.suffix}"
+  versioning_enabled      = true
+  expiration_days         = 4
+  expiration_prefixes     = ["csv-metrics/", "csv-notes/", "ai-insight-requests/", "data-exports/"]
+  deny_insecure_transport = true
+  tags                    = local.tags
 }
 
 # CloudFront needs its certificate in us-east-1 regardless of var.aws_region.

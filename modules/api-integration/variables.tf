@@ -25,10 +25,16 @@ variable "lambda_alias_name" {
 
 variable "routes" {
   type = list(object({
-    path   = string
-    method = string
+    path               = string
+    method             = string
+    authorization_type = optional(string, "NONE")
   }))
-  description = "API Gateway route configurations (fmt: method = 'ANY', path = '/api/auth/{proxy+}'"
+  description = "API Gateway route configurations (fmt: method = 'ANY', path = '/api/auth/{proxy+}'). authorization_type is NONE or AWS_IAM; an AWS_IAM route only answers SigV4-signed callers granted execute-api:Invoke on it."
+
+  validation {
+    condition     = alltrue([for r in var.routes : contains(["NONE", "AWS_IAM"], r.authorization_type)])
+    error_message = "authorization_type must be NONE or AWS_IAM."
+  }
 }
 
 variable "tags" {
