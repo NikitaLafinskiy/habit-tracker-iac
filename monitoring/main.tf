@@ -111,7 +111,7 @@ resource "aws_sns_topic_subscription" "alarm_email" {
 }
 
 module "dashboards" {
-  source = "./dashboards"
+  source = "../modules/dashboards"
 
   dashboard_name             = local.name
   aws_region                 = var.aws_region
@@ -130,7 +130,7 @@ module "dashboards" {
 }
 
 module "alerts" {
-  source = "./alerts"
+  source = "../modules/alerts"
   count  = local.is_prod ? 1 : 0
 
   name_prefix          = local.name

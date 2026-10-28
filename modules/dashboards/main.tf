@@ -434,17 +434,17 @@ locals {
   ] : widget if var.include_ses]
 }
 
-module "dashboard" {
-  source = "../../modules/cloudwatch-dashboard"
-
+resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = var.dashboard_name
-  widgets = concat(
-    local.api_widgets,
-    local.cloudfront_widgets,
-    local.lambda_widgets,
-    local.log_widgets,
-    local.queue_widgets,
-    local.database_widgets,
-    local.ses_widgets,
-  )
+  dashboard_body = jsonencode({
+    widgets = concat(
+      local.api_widgets,
+      local.cloudfront_widgets,
+      local.lambda_widgets,
+      local.log_widgets,
+      local.queue_widgets,
+      local.database_widgets,
+      local.ses_widgets,
+    )
+  })
 }
