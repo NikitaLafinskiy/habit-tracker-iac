@@ -73,3 +73,9 @@ variable "is_public" {
   description = "Whether the bucket should be public (adds a public read policy and website config)"
   default     = false
 }
+
+variable "deny_insecure_transport" {
+  type        = bool
+  description = "Attach a bucket policy that denies every request not made over TLS. Ignored on a public bucket, which carries its own policy."
+  default     = false
+}

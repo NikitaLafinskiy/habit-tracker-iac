@@ -61,6 +61,12 @@ variable "bedrock_model_arns" {
   default     = []
 }
 
+variable "execute_api_arns" {
+  type        = list(string)
+  description = "API Gateway execute-api ARNs (arn:aws:execute-api:<region>:<account>:<api-id>/<stage>/<METHOD>/<path>) this function may call with SigV4 on AWS_IAM routes"
+  default     = []
+}
+
 variable "ses_identity_arns" {
   type        = list(string)
   description = "ARNs of SES identities the Lambda execution role may send email from"
@@ -121,6 +127,23 @@ variable "keep_warm_interval_minutes" {
   validation {
     condition     = var.keep_warm_interval_minutes >= 1 && floor(var.keep_warm_interval_minutes) == var.keep_warm_interval_minutes
     error_message = "keep_warm_interval_minutes must be a whole number of minutes >= 1 (EventBridge rate() has a 1-minute minimum)."
+  }
+}
+
+variable "log_retention_days" {
+  type        = number
+  description = "Days CloudWatch keeps the function's logs"
+  default     = 180
+}
+
+variable "tracing_mode" {
+  type        = string
+  description = "X-Ray tracing mode: Active samples and traces invocations, PassThrough only forwards an incoming trace header"
+  default     = "Active"
+
+  validation {
+    condition     = contains(["Active", "PassThrough"], var.tracing_mode)
+    error_message = "tracing_mode must be Active or PassThrough."
   }
 }
 

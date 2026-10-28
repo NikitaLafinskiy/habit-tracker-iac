@@ -15,6 +15,12 @@ resource "aws_iam_role_policy_attachment" "this" {
   policy_arn = aws_iam_policy.this.arn
 }
 
+resource "aws_cloudwatch_log_group" "this" {
+  name              = "/aws/lambda/${var.name}"
+  retention_in_days = var.log_retention_days
+  tags              = var.tags
+}
+
 resource "aws_lambda_function" "this" {
   function_name = var.name
   role          = aws_iam_role.this.arn
@@ -38,8 +44,18 @@ resource "aws_lambda_function" "this" {
     apply_on = "PublishedVersions"
   }
 
+  tracing_config {
+    mode = var.tracing_mode
+  }
+
+  logging_config {
+    log_format = "Text"
+    log_group  = aws_cloudwatch_log_group.this.name
+  }
+
   environment {
     variables = merge(
+      { AWS_XRAY_CONTEXT_MISSING = "IGNORE_ERROR" },
       var.environment_variables,
       length(var.ssm_parameter_paths) > 0 ? {
         SSM_BACKED_PROPERTIES = join("\n", [for property_name, path in var.ssm_parameter_paths : "${property_name}=${path}"])

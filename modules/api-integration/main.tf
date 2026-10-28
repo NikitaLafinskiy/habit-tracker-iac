@@ -13,9 +13,10 @@ resource "aws_apigatewayv2_integration" "lambda" {
 resource "aws_apigatewayv2_route" "all" {
   for_each = { for idx, r in var.routes : "${r.method} ${r.path}" => r }
 
-  api_id    = var.api_gateway_id
-  route_key = each.key
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  api_id             = var.api_gateway_id
+  route_key          = each.key
+  authorization_type = each.value.authorization_type
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
 resource "aws_lambda_permission" "this" {

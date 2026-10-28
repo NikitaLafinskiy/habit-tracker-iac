@@ -43,6 +43,17 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
     ]
   }
 
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+    ]
+
+    resources = ["*"]
+  }
+
   dynamic "statement" {
     for_each = length(var.dynamodb_table_arns) > 0 ? [1] : []
     content {
@@ -64,6 +75,19 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
         var.dynamodb_table_arns,
         [for arn in var.dynamodb_table_arns : "${arn}/index/*"],
       )
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(var.execute_api_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+
+      actions = [
+        "execute-api:Invoke",
+      ]
+
+      resources = var.execute_api_arns
     }
   }
 
