@@ -124,6 +124,23 @@ variable "keep_warm_interval_minutes" {
   }
 }
 
+variable "log_retention_days" {
+  type        = number
+  description = "Days CloudWatch keeps the function's logs"
+  default     = 180
+}
+
+variable "tracing_mode" {
+  type        = string
+  description = "X-Ray tracing mode: Active samples and traces invocations, PassThrough only forwards an incoming trace header"
+  default     = "Active"
+
+  validation {
+    condition     = contains(["Active", "PassThrough"], var.tracing_mode)
+    error_message = "tracing_mode must be Active or PassThrough."
+  }
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags"

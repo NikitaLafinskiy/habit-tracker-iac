@@ -43,6 +43,17 @@ data "aws_iam_policy_document" "lambda_execution_role_policy" {
     ]
   }
 
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+    ]
+
+    resources = ["*"]
+  }
+
   dynamic "statement" {
     for_each = length(var.dynamodb_table_arns) > 0 ? [1] : []
     content {

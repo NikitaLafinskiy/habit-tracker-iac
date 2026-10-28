@@ -7,7 +7,7 @@ resource "aws_apigatewayv2_api" "this" {
 
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/apigateway/${aws_apigatewayv2_api.this.id}"
-  retention_in_days = 30
+  retention_in_days = var.log_retention_days
 
   tags = var.tags
 }
