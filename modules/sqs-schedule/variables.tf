@@ -24,6 +24,17 @@ variable "message_body" {
   description = "Body of the SQS message sent on every run, delivered verbatim"
 }
 
+variable "state" {
+  type        = string
+  description = "ENABLED or DISABLED; a disabled schedule sends nothing until it is switched on"
+  default     = "ENABLED"
+
+  validation {
+    condition     = contains(["ENABLED", "DISABLED"], var.state)
+    error_message = "state must be ENABLED or DISABLED."
+  }
+}
+
 variable "tags" {
   type        = map(string)
   description = "Map of tags for the IAM role; Scheduler schedules take no tags"

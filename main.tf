@@ -30,6 +30,38 @@ module "domain" {
 # Shared across all services - each service's own root uploads its build to
 # a service-specific key within this bucket (e.g. "auth/auth-service.jar")
 # rather than getting a bucket of its own.
+module "backup_region_settings" {
+  source = "./modules/backup-region-settings"
+  count  = local.is_prod ? 1 : 0
+
+  resource_type_opt_in_preference = {
+    "Aurora"                 = true
+    "CloudFormation"         = true
+    "DSQL"                   = true
+    "DocumentDB"             = true
+    "DynamoDB"               = true
+    "EBS"                    = true
+    "EC2"                    = true
+    "EFS"                    = true
+    "EKS"                    = false
+    "FSx"                    = true
+    "Neptune"                = true
+    "RDS"                    = true
+    "Redshift"               = true
+    "Redshift Serverless"    = false
+    "S3"                     = true
+    "SAP HANA on Amazon EC2" = true
+    "Storage Gateway"        = true
+    "Timestream"             = true
+    "VirtualMachine"         = true
+  }
+
+  resource_type_management_preference = {
+    "DynamoDB" = true
+    "EFS"      = true
+  }
+}
+
 module "lambda_artifacts_bucket" {
   source = "./modules/s3"
 
